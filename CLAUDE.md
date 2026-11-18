@@ -98,16 +98,17 @@ Ne pas le changer, sinon l'utilisateur devra désinstaller Aura et perdra ses fa
 | Points de notification + aperçu sous les favoris | ✅ testé, OK (après « Autoriser les paramètres restreints ») |
 | Mini-lecteur de musique | ✅ testé, OK |
 | Assistant de configuration (v0.1.4) | ✅ utilisé avec succès par l'utilisateur |
+| Batterie + prochain rendez-vous sous l'heure (v0.1.9) | ⏳ à tester |
+| Raccourcis d'app : glisser un favori à droite, menu d'appui long (v0.1.9) | ⏳ à tester |
+| Nouvelle icône « éclipse » + calque monochrome (v0.1.9) | ⏳ à tester |
 
 Si notifications ou lecteur ne marchent toujours pas : demander une capture du bloc **Diagnostic**
 (Réglages d'Aura → « Notifications et musique ») ; chaque ligne ✓/✗ correspond à une étape.
 
 ## Pistes pour la suite (proposées, pas encore faites)
 
-- Actions par app sur les favoris (glisser un favori → raccourcis de l'app, via `LauncherApps.getShortcuts`).
-- Batterie / météo / prochain évènement d'agenda sous l'heure.
+- Météo sous l'heure (demande internet + localisation).
 - Widgets (AppWidgetHost).
-- Icône d'Aura plus travaillée (l'actuelle est un simple halo en vecteur).
 - Option : deux variantes « Aura » (sans services sensibles, pas bloquée par Play Protect) et « Aura Plus ».
 
 ## Conventions
