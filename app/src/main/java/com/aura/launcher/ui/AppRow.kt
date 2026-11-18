@@ -110,6 +110,8 @@ fun AppRow(
             }
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            // --- Raccourcis d'app ---
+            ShortcutMenuItems(app, actions) { menuOpen = false }
             menu.forEach { item ->
                 DropdownMenuItem(
                     text = { Text(item.label) },

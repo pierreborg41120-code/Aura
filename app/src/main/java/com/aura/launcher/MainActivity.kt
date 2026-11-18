@@ -128,6 +128,7 @@ class MainActivity : ComponentActivity(), LauncherActions {
         state.settingsOpen = false
         state.renaming = null
         state.query = ""
+        state.shortcutPanel = null
     }
 
     private fun rebindNotificationService() {
@@ -378,4 +379,17 @@ class MainActivity : ComponentActivity(), LauncherActions {
     }
 
     override fun loadIcon(app: AppEntry, sizePx: Int): ImageBitmap? = repo.loadIcon(app, sizePx)
+
+    // --- Raccourcis d'app ---
+
+    private val shortcutRepo by lazy { ShortcutRepository(this) }
+
+    override fun loadShortcuts(app: AppEntry): List<AppShortcut> = shortcutRepo.shortcutsFor(app)
+
+    override fun launchShortcut(shortcut: AppShortcut) {
+        if (!shortcutRepo.start(shortcut)) toast("Impossible d'ouvrir « ${shortcut.label} »")
+    }
+
+    override fun loadShortcutIcon(shortcut: AppShortcut, sizePx: Int): ImageBitmap? =
+        shortcutRepo.loadIcon(shortcut, sizePx)
 }
