@@ -5,25 +5,18 @@ import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -32,6 +25,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,6 +33,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -57,13 +53,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -97,25 +89,41 @@ import kotlin.math.abs
 
 // --- Lecteur ---
 // Mini-lecteur d'Aura : une carte sombre translucide, teintée par la pochette, avec un halo
-// coloré qui déborde doucement sur le fond d'écran. Quand le morceau change, la pochette glisse
-// dans le sens du saut (suivant → vers la gauche) avec un léger rebond, et le texte suit avec
-// un petit décalage. Tout est dessiné à la main : aucune bibliothèque d'icônes.
+// coloré qui déborde doucement sur le fond d'écran. Le changement de morceau se veut discret :
+// la nouvelle pochette se pose en fondu par-dessus l'ancienne, le texte s'enchaîne en fondu,
+// rien ne glisse ni ne rebondit. Tout est dessiné à la main : aucune bibliothèque d'icônes.
 
 /** Fond de la carte : assez sombre pour que le texte clair reste lisible sur un fond d'écran clair. */
 private val CardBase = Color(0xFF0E0E14)
 
-// Courbes « emphasized » : décélération franche à l'arrivée, accélération au départ.
+// Courbes « emphasized » : décélération franche à l'arrivée ; « standard » pour les fondus.
 private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
-private val EmphasizedAccelerate = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
 private val Standard = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
-/** Partie de [MediaInfo] qui change seulement avec le morceau (pour ne pas réanimer à chaque seconde). */
-private data class TrackVisual(
+// Durées de la transition de morceau (sortie plus courte que l'entrée, arrivée en décélération).
+/** Fondu de la nouvelle pochette par-dessus l'ancienne. */
+private const val ArtFadeMs = 380
+/** Teinte de la carte et du halo, lancée en même temps que le fondu de la pochette. */
+private const val AccentMs = 600
+/** Sortie de l'ancien titre. */
+private const val TextOutMs = 120
+/** Entrée du nouveau titre, et son décalage par rapport au début de la sortie. */
+private const val TextInMs = 240
+private const val TextInDelayMs = 60
+/** Retour de la ligne à sa place après un glisser. */
+private const val DragReturnMs = 200
+
+/**
+ * Temps pendant lequel on garde l'ancienne pochette quand le titre a changé mais que la nouvelle
+ * image n'est pas encore arrivée (les métadonnées arrivent souvent en plusieurs fois).
+ */
+private const val ArtHoldMs = 1200L
+
+/** Partie de [MediaInfo] affichée dans la colonne de texte (ne change qu'avec le morceau). */
+private data class TrackText(
     val trackId: String,
     val title: String,
     val artist: String?,
-    val art: ImageBitmap?,
-    val direction: Int,
 )
 
 /** Mini-lecteur affiché sur l'accueil quand de la musique est en cours. */
@@ -127,10 +135,27 @@ fun MediaCard(media: MediaInfo, actions: LauncherActions, textScale: Float) {
         Settings.Global.getFloat(context.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
     }
 
-    val targetAccent = media.artColor?.let { tame(Color(it)) } ?: AuraColors.Accent
+    // Pochette et couleur « tenues » : si le morceau change avant que sa pochette n'arrive, on
+    // garde l'ancienne (au plus [ArtHoldMs]) au lieu d'afficher la note puis l'image (double
+    // animation, flash). La transition est donc pilotée par l'image elle-même, pas par le titre.
+    var heldArt by remember { mutableStateOf(media.art) }
+    var heldColor by remember { mutableStateOf(media.artColor) }
+    LaunchedEffect(media.art, media.artColor) {
+        if (media.art != null) {
+            heldArt = media.art
+            heldColor = media.artColor
+        } else if (heldArt != null) {
+            delay(ArtHoldMs)
+            heldArt = null
+            heldColor = null
+        }
+    }
+
+    // Le halo change de teinte quand l'image change, donc en même temps que son fondu.
+    val targetAccent = heldColor?.let { tame(Color(it)) } ?: AuraColors.Accent
     val accent by animateColorAsState(
         targetValue = targetAccent,
-        animationSpec = tween(if (reduceMotion) 0 else 700, easing = Standard),
+        animationSpec = tween(if (reduceMotion) 0 else AccentMs, easing = Standard),
         label = "accent",
     )
     val shape = RoundedCornerShape(28.dp)
@@ -170,6 +195,7 @@ fun MediaCard(media: MediaInfo, actions: LauncherActions, textScale: Float) {
         Column {
             TrackInfo(
                 media = media,
+                art = heldArt,
                 accent = accent,
                 textScale = textScale,
                 reduceMotion = reduceMotion,
@@ -184,109 +210,87 @@ fun MediaCard(media: MediaInfo, actions: LauncherActions, textScale: Float) {
 /** Taille de la pochette : c'est elle qui donne sa hauteur au lecteur. */
 private val ArtSize = 100.dp
 
+/** Décalage visuel maximal de la ligne pendant un glisser (forte résistance). */
+private val DragMax = 24.dp
+
+/** Distance parcourue par le doigt au-delà de laquelle le glisser change de morceau. */
+private val DragThreshold = 56.dp
+
 /**
  * Grande pochette à gauche ; à droite, titre et artiste en haut, boutons en bas, alignés sur la
- * hauteur de la pochette. Glisser la pochette ou le titre change de morceau, toucher ouvre l'app.
+ * hauteur de la pochette. Glisser la ligne change de morceau, toucher pochette ou titre ouvre l'app.
  */
 @Composable
 private fun TrackInfo(
     media: MediaInfo,
+    art: ImageBitmap?,
     accent: Color,
     textScale: Float,
     reduceMotion: Boolean,
     actions: LauncherActions,
 ) {
-    val visual = TrackVisual(media.trackId, media.title, media.artist, media.art, media.direction)
+    val text = TrackText(media.trackId, media.title, media.artist)
     val view = LocalView.current
     val scope = rememberCoroutineScope()
-    // Décalage horizontal visuel (déjà amorti) de la pochette et du texte pendant le geste.
-    val drag = remember { Animatable(0f) }
-    val threshold = with(LocalDensity.current) { 40.dp.toPx() }
-    var rowWidth by remember { mutableFloatStateOf(1f) }
+    val density = LocalDensity.current
+    val maxPx = with(density) { DragMax.toPx() }
+    val threshold = with(density) { DragThreshold.toPx() }
+    val textShift = with(density) { 4.dp.roundToPx() }
     val currentActions by rememberUpdatedState(actions)
-    val currentTrack by rememberUpdatedState(media.trackId)
+    // Décalage visuel (amorti) de la ligne pendant le geste ; [raw] = distance réelle du doigt.
+    val drag = remember { Animatable(0f) }
+    var raw by remember { mutableStateOf(0f) }
     var crossed by remember { mutableStateOf(false) }
-    // Vrai quand la pochette vient d'être « lancée » hors de la carte par un glisser : l'ancien
-    // contenu est déjà parti, il disparaît donc sans seconde animation de sortie.
-    var flung by remember { mutableStateOf(false) }
 
-    // Le nouveau morceau est arrivé : on remet le calque en place, la transition d'entrée prend le relais.
-    LaunchedEffect(media.trackId) {
-        if (flung) {
-            drag.snapTo(0f)
-            flung = false
-        }
+    fun settle() {
+        scope.launch { drag.animateTo(0f, tween(if (reduceMotion) 0 else DragReturnMs, easing = Standard)) }
     }
 
-    val dragLayer = Modifier.graphicsLayer {
-        translationX = drag.value
-        alpha = 1f - (abs(drag.value) / (rowWidth * 0.7f)).coerceIn(0f, 1f)
-    }
-    val gestures = Modifier
-        .pointerInput(Unit) {
-            detectHorizontalDragGestures(
-                onDragStart = { crossed = false },
-                onDragEnd = {
-                    val d = drag.value
-                    if (abs(d) > threshold) {
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        val from = currentTrack
-                        flung = true
-                        if (d < 0) currentActions.mediaNext() else currentActions.mediaPrevious()
-                        scope.launch {
-                            // La pochette poursuit sa course dans le sens du geste et sort de la carte.
-                            val out = if (d < 0) -rowWidth else rowWidth
-                            drag.animateTo(out, tween(if (reduceMotion) 0 else 240, easing = EmphasizedAccelerate))
-                            // Si l'app n'a pas changé de morceau, la pochette revient.
-                            delay(1500)
-                            if (currentTrack == from) {
-                                flung = false
-                                drag.snapTo(if (d < 0) -rowWidth * 0.25f else rowWidth * 0.25f)
-                                drag.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow))
-                            }
-                        }
-                    } else {
-                        scope.launch {
-                            drag.animateTo(0f, spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow))
-                        }
-                    }
-                },
-                onDragCancel = { scope.launch { drag.animateTo(0f) } },
-                onHorizontalDrag = { change, amount ->
-                    change.consume()
-                    // Un peu de résistance : la pochette suit le doigt à 60 %.
-                    val next = drag.value + amount * 0.6f
-                    scope.launch { drag.snapTo(next) }
-                    val beyond = abs(next) > threshold
-                    if (beyond != crossed) {
-                        crossed = beyond
-                        // Petit « tic » quand on franchit le seuil.
-                        if (beyond) view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-                    }
-                },
-            )
-        }
-        .clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onClickLabel = "Ouvrir l'app de musique",
-        ) { actions.mediaOpen() }
+    val openApp = Modifier.clickable(
+        interactionSource = remember { MutableInteractionSource() },
+        indication = null,
+        onClickLabel = "Ouvrir l'app de musique",
+    ) { actions.mediaOpen() }
 
     Row(
         verticalAlignment = Alignment.Top,
         modifier = Modifier
             .fillMaxWidth()
-            .onSizeChanged { rowWidth = it.width.toFloat().coerceAtLeast(1f) },
+            // Le geste est lu AVANT le décalage visuel : le déplacement de la ligne ne fausse pas
+            // la distance mesurée sous le doigt.
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        raw = 0f
+                        crossed = false
+                        scope.launch { drag.stop() }
+                    },
+                    onDragEnd = {
+                        if (abs(raw) > threshold) {
+                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            if (raw < 0) currentActions.mediaNext() else currentActions.mediaPrevious()
+                        }
+                        settle()
+                    },
+                    onDragCancel = { settle() },
+                    onHorizontalDrag = { change, amount ->
+                        change.consume()
+                        raw += amount
+                        // Élastique : la ligne suit le doigt de moins en moins, sans dépasser [DragMax].
+                        val shown = maxPx * raw / (abs(raw) + maxPx)
+                        scope.launch { drag.snapTo(shown) }
+                        val beyond = abs(raw) > threshold
+                        if (beyond != crossed) {
+                            crossed = beyond
+                            // Petit « tic » quand on franchit le seuil.
+                            if (beyond) view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        }
+                    },
+                )
+            }
+            .graphicsLayer { translationX = drag.value },
     ) {
-        AnimatedContent(
-            targetState = visual,
-            contentKey = { it.trackId },
-            transitionSpec = { trackTransform(targetState.direction, reduceMotion, isArt = true, flung) },
-            label = "pochette",
-            modifier = dragLayer.then(gestures),
-        ) { track ->
-            Artwork(track.art, accent, reduceMotion)
-        }
+        Artwork(art, accent, reduceMotion, openApp)
         Spacer(Modifier.width(16.dp))
         Column(
             verticalArrangement = Arrangement.SpaceBetween,
@@ -295,19 +299,16 @@ private fun TrackInfo(
                 .heightIn(min = ArtSize),
         ) {
             AnimatedContent(
-                targetState = visual,
+                targetState = text,
                 contentKey = { it.trackId },
-                transitionSpec = { trackTransform(targetState.direction, reduceMotion, isArt = false, flung) },
+                transitionSpec = { textTransform(reduceMotion, textShift) },
                 contentAlignment = Alignment.TopStart,
                 label = "titre",
                 modifier = Modifier
                     .fillMaxWidth()
-                    .graphicsLayer {
-                        // Le texte accompagne la pochette, en plus discret.
-                        translationX = drag.value * 0.35f
-                        alpha = 1f - (abs(drag.value) / (rowWidth * 0.5f)).coerceIn(0f, 1f)
-                    }
-                    .then(gestures),
+                    // Le texte reste dans sa colonne, quoi qu'il arrive.
+                    .clipToBounds()
+                    .then(openApp),
             ) { track ->
                 Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
                     Text(
@@ -339,63 +340,97 @@ private fun TrackInfo(
 }
 
 /**
- * Transition entre deux morceaux.
- * - Saut demandé depuis Aura : glissement dans le sens du saut + fondu croisé ; la pochette
- *   arrive avec un léger rebond d'échelle, le texte suit 70 ms plus tard sur une distance plus courte.
- *   Le décalage est proportionnel à la largeur du contenu, donc identique quelle que soit sa taille.
- * - Après un glisser ([flung]) : l'ancien contenu est déjà sorti, il disparaît instantanément.
- * - Changement venu d'ailleurs : simple fondu avec un soupçon d'échelle.
+ * Titre et artiste : fondu enchaîné. L'ancien texte s'efface vite, le nouveau apparaît un
+ * instant plus tard en remontant de quelques pixels. Pas d'animation de taille : la colonne
+ * prend directement la hauteur du nouveau texte.
  */
-private fun trackTransform(direction: Int, reduceMotion: Boolean, isArt: Boolean, flung: Boolean): ContentTransform {
-    if (reduceMotion) return EnterTransition.None togetherWith ExitTransition.None
-    val delay = if (isArt) 0 else 70
-    if (direction == 0) {
-        val enter = fadeIn(tween(380, delay, Standard)) +
-            scaleIn(tween(420, delay, EmphasizedDecelerate), initialScale = if (isArt) 0.94f else 1f)
-        return ContentTransform(enter, fadeOut(tween(180, easing = EmphasizedAccelerate)), sizeTransform = SizeTransform(clip = false))
-    }
-    val share = if (isArt) 0.6f else 0.3f
-    var enter = slideInHorizontally(tween(440, delay, EmphasizedDecelerate)) { w -> (direction * w * share).toInt() } +
-        fadeIn(tween(320, delay + 40, Standard))
-    if (isArt) enter += scaleIn(spring(dampingRatio = 0.6f, stiffness = 380f), initialScale = 0.86f)
-    if (flung) {
-        return ContentTransform(enter, fadeOut(tween(0)), sizeTransform = SizeTransform(clip = false))
-    }
-    var exit = slideOutHorizontally(tween(220, 0, EmphasizedAccelerate)) { w -> (-direction * w * share).toInt() } +
-        fadeOut(tween(200, easing = EmphasizedAccelerate))
-    if (isArt) exit += scaleOut(tween(220, easing = EmphasizedAccelerate), targetScale = 0.9f)
-    return ContentTransform(enter, exit, sizeTransform = SizeTransform(clip = false))
+private fun textTransform(reduceMotion: Boolean, shiftPx: Int): ContentTransform {
+    if (reduceMotion) return ContentTransform(EnterTransition.None, ExitTransition.None, sizeTransform = null)
+    val enter = fadeIn(tween(TextInMs, TextInDelayMs, Standard)) +
+        slideInVertically(tween(TextInMs, TextInDelayMs, EmphasizedDecelerate)) { shiftPx }
+    val exit = fadeOut(tween(TextOutMs, easing = LinearEasing))
+    return ContentTransform(enter, exit, sizeTransform = null)
 }
 
-/** Pochette carrée aux coins doux ; une note dessinée la remplace si l'app n'en fournit pas. */
+/**
+ * Pochette carrée aux coins doux, dans un cadre fixe. Quand l'image change, la nouvelle se pose
+ * en fondu par-dessus l'ancienne (qui reste immobile dessous) avec un très léger retour d'échelle
+ * 1,04 → 1. Une note dessinée remplace l'image si l'app n'en fournit pas.
+ */
 @Composable
-private fun Artwork(art: ImageBitmap?, accent: Color, reduceMotion: Boolean) {
+private fun Artwork(art: ImageBitmap?, accent: Color, reduceMotion: Boolean, modifier: Modifier) {
+    val placeholder = lerp(CardBase, accent, 0.45f)
+    // Image du dessous (immobile) et image qui arrive par-dessus pendant le fondu.
+    var base by remember { mutableStateOf(art) }
+    var incoming by remember { mutableStateOf<ImageBitmap?>(null) }
+    var fading by remember { mutableStateOf(false) }
+    val progress = remember { Animatable(1f) }
+
+    LaunchedEffect(art) {
+        // Fondu interrompu par une nouvelle image : celle qui arrivait devient le fond.
+        if (fading) {
+            base = incoming
+            fading = false
+            incoming = null
+        }
+        if (art == base) return@LaunchedEffect
+        if (reduceMotion) {
+            base = art
+            return@LaunchedEffect
+        }
+        incoming = art
+        progress.snapTo(0f)
+        fading = true
+        // Progression linéaire ; les courbes sont appliquées séparément au fondu et à l'échelle.
+        progress.animateTo(1f, tween(ArtFadeMs, easing = LinearEasing))
+        base = art
+        fading = false
+        incoming = null
+    }
+
     Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
+        modifier = modifier
             .size(ArtSize)
             // Légère ombre portée : la pochette se détache de la carte.
             .shadow(10.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black, spotColor = Color.Black)
+            // Découpe aux coins arrondis : l'échelle 1,04 de la nouvelle image ne déborde jamais.
             .clip(RoundedCornerShape(16.dp))
-            .background(lerp(CardBase, accent, 0.45f)),
+            .background(placeholder),
     ) {
-        // La pochette arrive parfois une fraction de seconde après le titre : fondu dans ce cas.
-        Crossfade(art, animationSpec = tween(if (reduceMotion) 0 else 300), label = "image") { image ->
-            if (image != null) {
-                Image(
-                    bitmap = image,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Canvas(Modifier.size(34.dp)) { drawNote(Color.White.copy(alpha = 0.85f)) }
-                }
-            }
+        ArtLayer(base, placeholder, Modifier)
+        if (fading) {
+            ArtLayer(
+                incoming,
+                placeholder,
+                Modifier.graphicsLayer {
+                    val t = progress.value
+                    alpha = Standard.transform(t)
+                    val s = 1.04f - 0.04f * EmphasizedDecelerate.transform(t)
+                    scaleX = s
+                    scaleY = s
+                },
+            )
         }
     }
 }
+
+/** Un calque de la pochette : l'image, ou la note sur fond opaque (pour bien couvrir l'ancienne). */
+@Composable
+private fun ArtLayer(image: ImageBitmap?, placeholder: Color, modifier: Modifier) {
+    if (image != null) {
+        Image(
+            bitmap = image,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = modifier.fillMaxSize(),
+        )
+    } else {
+        Box(modifier.fillMaxSize().background(placeholder), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.size(34.dp)) { drawNote(Color.White.copy(alpha = 0.85f)) }
+        }
+    }
+}
+
 
 /** Précédent, lecture/pause (pastille claire), suivant. */
 @Composable
