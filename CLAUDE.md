@@ -105,6 +105,11 @@ Ne pas le changer, sinon l'utilisateur devra désinstaller Aura et perdra ses fa
 | Carte de l'app (glisser un favori : notifications + widget + raccourcis) | ✅ testé, widget Tesla OK (boutons fonctionnels) ; il était écrasé → hauteur revue + réglable, **à revérifier** |
 | Mini-lecteur : transition liquide (shader AGSL, ui/LiquidTransition.kt) | ✅ testé, « vraiment top » |
 | Mini-lecteur sans fond (posé sur le fond d'écran, bouton lecture en anneau) | ⏳ à tester |
+| Recherche universelle : apps, contacts (READ_CONTACTS), calcul, réglages Android, web (search/, ui/SearchSections.kt) | ⏳ à tester |
+| Tri par utilisation dans chaque lettre + apps suggérées (UsageTracker.kt, compteur local) | ⏳ à tester |
+| Lire / répondre / effacer les notifications dans la carte de l'app (ui/NotificationList.kt) | ⏳ à tester |
+| Météo Open-Meteo, désactivée par défaut, position approximative ou ville (Weather*.kt, ui/WeatherSheet.kt) | ⏳ à tester |
+| Widget libre sur l'accueil, apps musique aux écouteurs, rotation, haptique (ui/HomeWidget*.kt, HeadphonesWatcher.kt) | ⏳ à tester |
 | Finitions de design « éclipse » (tokens dans Theme.kt, ombres de texte, A–Z en loupe) | ⏳ à tester |
 
 Si notifications ou lecteur ne marchent toujours pas : demander une capture du bloc **Diagnostic**
@@ -112,7 +117,10 @@ Si notifications ou lecteur ne marchent toujours pas : demander une capture du b
 
 ## Pistes pour la suite (proposées, pas encore faites)
 
-- Météo sous l'heure (demande internet + localisation).
+- Dossiers pop-up, styles d'horloge / polices / couleur d'accent, récap des notifications, limiteur d'utilisation
+  (repérés dans les réglages de Niagara, laissés pour plus tard).
+- Réglages : chaque fonction a sa section dans `ui/settings/*.kt`, appelée par une ligne de SettingsScreen.kt.
+
 - Widgets (AppWidgetHost).
 - Option : deux variantes « Aura » (sans services sensibles, pas bloquée par Play Protect) et « Aura Plus ».
 
