@@ -608,6 +608,7 @@ class MainActivity : ComponentActivity(), LauncherActions {
     @Suppress("DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_HOME_WIDGET_CONFIGURE) return onHomeWidgetConfigured(resultCode) // --- Accueil ---
         if (requestCode != REQUEST_WIDGET_CONFIGURE) return
         val pending = pendingWidget ?: return
         if (resultCode == RESULT_OK) finishWidget(pending) else cancelPendingWidget()
@@ -669,17 +670,8 @@ class MainActivity : ComponentActivity(), LauncherActions {
             if (result.resultCode == RESULT_OK) configureHomeWidget(id) else cancelHomeWidget()
         }
 
-    /** Écran de réglage du widget (Android 12+ : via l'IntentSender fourni par l'hôte). */
-    private val homeWidgetConfigureSender =
-        registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-            onHomeWidgetConfigured(result.resultCode)
-        }
-
-    /** Écran de réglage du widget (avant Android 12 : intent direct). */
-    private val homeWidgetConfigureIntent =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            onHomeWidgetConfigured(result.resultCode)
-        }
+    /** Code de retour de l'écran de réglage du widget d'accueil (différent de celui des cartes). */
+    private val REQUEST_HOME_WIDGET_CONFIGURE = 0x4158
 
     init {
         lifecycle.addObserver(object : DefaultLifecycleObserver {
@@ -794,16 +786,9 @@ class MainActivity : ComponentActivity(), LauncherActions {
             return
         }
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val sender = widgets.host.getIntentSenderForConfigureActivity(id, 0)
-                homeWidgetConfigureSender.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build())
-            } else {
-                homeWidgetConfigureIntent.launch(
-                    Intent(android.appwidget.AppWidgetManager.ACTION_APPWIDGET_CONFIGURE)
-                        .setComponent(info.configure)
-                        .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, id),
-                )
-            }
+            // Méthode de l'hôte : gère aussi le profil pro et les écrans de réglage non exportés.
+            // Le résultat arrive dans onActivityResult (REQUEST_HOME_WIDGET_CONFIGURE).
+            widgets.host.startAppWidgetConfigureActivityForResult(this, id, 0, REQUEST_HOME_WIDGET_CONFIGURE, null)
         } catch (e: Exception) {
             cancelHomeWidget()
             toast("Ce widget ne peut pas être configuré")
