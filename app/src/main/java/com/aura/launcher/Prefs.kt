@@ -86,6 +86,19 @@ class Prefs(context: Context) {
             editor.apply()
         }
 
+    // --- Tiroir et recherche ---
+    var searchContacts: Boolean
+        get() = sp.getBoolean("drawer_search_contacts", false)
+        set(value) = sp.edit().putBoolean("drawer_search_contacts", value).apply()
+
+    var sortByUsage: Boolean
+        get() = sp.getBoolean("drawer_sort_by_usage", true)
+        set(value) = sp.edit().putBoolean("drawer_sort_by_usage", value).apply()
+
+    var showSuggestions: Boolean
+        get() = sp.getBoolean("drawer_suggestions", true)
+        set(value) = sp.edit().putBoolean("drawer_suggestions", value).apply()
+
     private companion object {
         const val WIDGET_PREFIX = "widget:"
         // « widget_h: » ne commence pas par « widget: » : les deux familles de clés ne se mélangent pas.

@@ -66,6 +66,17 @@ class LauncherState {
     var widgetHeights by mutableStateOf<Map<String, Int>>(emptyMap())
     /** Augmente à chaque retour sur le launcher : déclenche l'apparition douce de l'accueil. */
     var homeEntrance by mutableStateOf(0)
+
+    // --- Tiroir et recherche ---
+    /** Interrupteur « Chercher dans les contacts » (n'agit que si la permission est accordée). */
+    var searchContacts by mutableStateOf(false)
+    var hasContactsAccess by mutableStateOf(false)
+    /** Dans chaque lettre, les apps les plus utilisées d'abord. */
+    var sortByUsage by mutableStateOf(true)
+    /** Ligne d'apps suggérées en haut du tiroir. */
+    var showSuggestions by mutableStateOf(true)
+    /** Scores d'utilisation (clé de l'app → score), mis à jour à chaque retour sur Aura. */
+    var usageScores by mutableStateOf<Map<String, Double>>(emptyMap())
 }
 
 /** Ce que l'interface peut demander à l'activité. */
@@ -130,4 +141,22 @@ interface LauncherActions {
     // --- Design ---
     /** Mémorise la hauteur (dp) du widget de l'app ; null revient à la hauteur calculée. */
     fun setWidgetHeight(app: AppEntry, heightDp: Int?)
+
+    // --- Tiroir et recherche ---
+    /** Active la recherche dans les contacts (demande la permission si besoin). */
+    fun setSearchContacts(enabled: Boolean)
+    fun setSortByUsage(enabled: Boolean)
+    fun setShowSuggestions(show: Boolean)
+    /** Efface l'historique d'utilisation. */
+    fun clearUsage()
+    /** Contacts correspondant à la saisie. À appeler hors du thread principal. */
+    fun searchContacts(query: String): List<com.aura.launcher.search.ContactResult>
+    /** Photo du contact. À appeler hors du thread principal. */
+    fun loadContactPhoto(contact: com.aura.launcher.search.ContactResult, sizePx: Int): ImageBitmap?
+    fun openContact(contact: com.aura.launcher.search.ContactResult)
+    /** Ouvre le composeur avec le numéro du contact (aucune permission d'appel nécessaire). */
+    fun dialContact(contact: com.aura.launcher.search.ContactResult)
+    fun openSystemSetting(shortcut: com.aura.launcher.search.SettingsShortcut)
+    fun webSearch(query: String)
+    fun copyToClipboard(text: String)
 }

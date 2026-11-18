@@ -74,29 +74,70 @@ import androidx.compose.ui.unit.dp
 import com.aura.launcher.AppEntry
 import com.aura.launcher.LauncherActions
 import com.aura.launcher.LauncherState
+import com.aura.launcher.search.Calculator
+import com.aura.launcher.search.ContactResult
+import com.aura.launcher.search.SettingsShortcut
+import com.aura.launcher.search.SettingsShortcuts
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 private val ALPHABET = ('A'..'Z').map { it.toString() } + "#"
 
-/** Élément de la liste : un en-tête de lettre ou une app. */
+/** Élément de la liste : un en-tête de lettre, une app, ou la rangée d'apps suggérées. */
 private sealed interface DrawerItem {
     val id: String
     data class Header(val letter: String) : DrawerItem { override val id = "h:$letter" }
     data class App(val app: AppEntry) : DrawerItem { override val id = app.key }
+    data class Suggestions(val apps: List<AppEntry>) : DrawerItem { override val id = "suggestions" }
 }
+
+/** Contacts trouvés pour une saisie donnée (pour savoir si la réponse correspond à ce qui est tapé). */
+private data class ContactHits(val query: String, val list: List<ContactResult>)
+
+/** Pause après la dernière lettre tapée avant d'interroger les contacts. */
+private const val CONTACTS_DEBOUNCE_MS = 120L
+
+/** Score minimal pour qu'une app soit suggérée (environ un lancement récent). */
+private const val SUGGESTION_MIN_SCORE = 0.5
+
+/** En dessous de ce nombre d'apps assez utilisées, la rangée de suggestions ne s'affiche pas. */
+private const val SUGGESTION_MIN_COUNT = 4
 
 @Composable
 fun AppDrawer(state: LauncherState, actions: LauncherActions) {
     val apps = state.visibleApps
     val query = state.query
     val focusManager = LocalFocusManager.current
+    val scores = if (state.sortByUsage) state.usageScores else emptyMap()
 
-    val results = remember(apps, query) { search(apps, query) }
+    val results = remember(apps, query, scores) { search(apps, query, scores) }
+    val calc = remember(query) { Calculator.evaluate(query) }
+    val settingMatches = remember(query) { SettingsShortcuts.match(query) }
 
-    // Lancement automatique quand la recherche ne laisse qu'une seule app.
-    LaunchedEffect(results, query) {
-        if (state.autoLaunch && query.length >= 2 && results.size == 1) {
+    // Contacts : interrogés hors du thread principal, peu après la dernière lettre tapée.
+    val contactsOn = state.searchContacts && state.hasContactsAccess
+    val contactQuery = query.trim()
+    val wantsContacts = contactsOn && calc == null && AppEntry.normalize(contactQuery).length >= 2
+    var contactHits by remember { mutableStateOf(ContactHits("", emptyList())) }
+    LaunchedEffect(contactQuery, wantsContacts) {
+        if (!wantsContacts) return@LaunchedEffect
+        delay(CONTACTS_DEBOUNCE_MS)
+        val found = withContext(Dispatchers.IO) { actions.searchContacts(contactQuery) }
+        contactHits = ContactHits(contactQuery, found)
+    }
+    val contactsReady = !wantsContacts || contactHits.query == contactQuery
+    // Pendant la frappe, on garde les contacts précédents à l'écran (pas de clignotement).
+    val contacts = if (wantsContacts) contactHits.list else emptyList()
+
+    // Lancement automatique quand la recherche ne laisse qu'une seule app, comme avant. On attend la
+    // réponse des contacts ; si des contacts (ou un calcul) s'affichent aussi, on ne lance rien :
+    // l'utilisateur choisit (la touche Entrée du clavier ouvre toujours la première app).
+    val othersShown = contacts.isNotEmpty() || calc != null
+    LaunchedEffect(results, query, contactsReady, othersShown) {
+        if (state.autoLaunch && query.length >= 2 && results.size == 1 && contactsReady && !othersShown) {
             focusManager.clearFocus()
             actions.launch(results.first())
         }
@@ -113,20 +154,42 @@ fun AppDrawer(state: LauncherState, actions: LauncherActions) {
             SearchField(
                 value = query,
                 onValueChange = { state.query = it },
-                onGo = { results.firstOrNull()?.let(actions::launch) },
+                onGo = {
+                    // Entrée : la première app, sinon copier le calcul, sinon chercher sur le web.
+                    val first = results.firstOrNull()
+                    when {
+                        first != null -> actions.launch(first)
+                        calc != null -> actions.copyToClipboard(calc)
+                        query.isNotBlank() -> actions.webSearch(query)
+                    }
+                },
                 textScale = state.textScale,
             )
             if (query.isBlank()) {
                 AlphabeticalList(state, actions, apps)
             } else {
-                SearchResults(state, actions, results)
+                SearchResults(
+                    state = state,
+                    actions = actions,
+                    query = query,
+                    results = results,
+                    calc = calc,
+                    contacts = contacts,
+                    // Invitation seulement quand aucune app ne correspond : c'est là qu'on cherche une personne.
+                    inviteContacts = !contactsOn && results.isEmpty() && calc == null &&
+                        AppEntry.normalize(contactQuery).length >= 2,
+                    settings = settingMatches,
+                )
             }
         }
     }
 }
 
-/** Les apps dont le nom commence par la recherche passent avant celles qui la contiennent. */
-private fun search(apps: List<AppEntry>, query: String): List<AppEntry> {
+/**
+ * Les apps dont le nom commence par la recherche passent avant celles qui la contiennent.
+ * Dans chaque groupe, les plus utilisées d'abord ([scores] vide = ordre alphabétique).
+ */
+private fun search(apps: List<AppEntry>, query: String, scores: Map<String, Double>): List<AppEntry> {
     val q = AppEntry.normalize(query)
     if (q.isEmpty()) return apps
     val starts = mutableListOf<AppEntry>()
@@ -140,7 +203,25 @@ private fun search(apps: List<AppEntry>, query: String): List<AppEntry> {
             key.contains(q) || app.packageName.contains(q) -> contains += app
         }
     }
-    return starts + wordStarts + contains
+    if (scores.isEmpty()) return starts + wordStarts + contains
+    // Tri stable : à score égal, l'ordre alphabétique est conservé.
+    val byUsage = compareByDescending<AppEntry> { scores[it.key] ?: 0.0 }
+    return starts.sortedWith(byUsage) + wordStarts.sortedWith(byUsage) + contains.sortedWith(byUsage)
+}
+
+/** Dans chaque lettre (suite d'apps de même lettre), les plus utilisées d'abord. */
+private fun sortWithinLetters(apps: List<AppEntry>, scores: Map<String, Double>): List<AppEntry> {
+    if (scores.isEmpty()) return apps
+    val byUsage = compareByDescending<AppEntry> { scores[it.key] ?: 0.0 }
+    val result = ArrayList<AppEntry>(apps.size)
+    var start = 0
+    while (start < apps.size) {
+        var end = start
+        while (end < apps.size && apps[end].letter == apps[start].letter) end++
+        result += apps.subList(start, end).sortedWith(byUsage)
+        start = end
+    }
+    return result
 }
 
 /**
@@ -184,7 +265,7 @@ private fun SearchField(value: String, onValueChange: (String) -> Unit, onGo: ()
                 Spacer(Modifier.width(AuraSpace.m))
                 Box(Modifier.weight(1f)) {
                     if (value.isEmpty()) {
-                        Text("Rechercher une app", color = AuraColors.TextFaint, style = style)
+                        Text("Rechercher une app, un calcul…", color = AuraColors.TextFaint, style = style)
                     }
                     inner()
                 }
@@ -235,17 +316,23 @@ private fun ClearGlyph(color: Color) {
     }
 }
 
+/**
+ * Résultats de la recherche universelle : calcul (réponse directe), apps, puis sections discrètes
+ * Contacts, Réglages Android et, en dernier, la recherche web.
+ */
 @Composable
-private fun SearchResults(state: LauncherState, actions: LauncherActions, results: List<AppEntry>) {
-    if (results.isEmpty()) {
-        Text(
-            "Aucune app ne correspond. Vérifie l'orthographe ou affiche les apps masquées dans les réglages.",
-            color = AuraColors.TextDim,
-            style = AuraType.body,
-            modifier = Modifier.padding(horizontal = AuraSpace.gutter, vertical = AuraSpace.l),
-        )
-        return
-    }
+private fun SearchResults(
+    state: LauncherState,
+    actions: LauncherActions,
+    query: String,
+    results: List<AppEntry>,
+    calc: String?,
+    contacts: List<ContactResult>,
+    inviteContacts: Boolean,
+    settings: List<SettingsShortcut>,
+) {
+    val iconSize = (34 * state.textScale).dp
+    val rowStyle = AuraType.row.scaled(state.textScale)
     LazyColumn(
         contentPadding = PaddingValues(
             start = AuraSpace.gutter,
@@ -255,16 +342,52 @@ private fun SearchResults(state: LauncherState, actions: LauncherActions, result
         ),
         modifier = Modifier.fillMaxSize(),
     ) {
+        if (calc != null) {
+            item(key = "calc") {
+                CalcResultRow(calc, state.showIcons, iconSize, rowStyle) { actions.copyToClipboard(calc) }
+            }
+        }
         items(results, key = { it.key }) { app ->
             AppRow(
                 app = app,
                 actions = actions,
                 showIcon = state.showIcons,
-                iconSize = (34 * state.textScale).dp,
-                textStyle = AuraType.row.scaled(state.textScale),
+                iconSize = iconSize,
+                textStyle = rowStyle,
                 badge = state.notificationsFor(app) != null,
                 menu = drawerMenu(state, actions, app),
             )
+        }
+        if (results.isEmpty() && calc == null) {
+            item(key = "no-app") {
+                Text(
+                    "Aucune app ne correspond (les apps masquées n'apparaissent pas).",
+                    color = AuraColors.TextDim,
+                    style = AuraType.bodySmall,
+                    modifier = Modifier.padding(vertical = AuraSpace.s),
+                )
+            }
+        }
+        if (contacts.isNotEmpty()) {
+            item(key = "h:contacts") { SearchSectionHeader("Contacts") }
+            items(contacts, key = { it.key }) { contact ->
+                ContactRow(contact, actions, state.showIcons, iconSize, rowStyle)
+            }
+        } else if (inviteContacts) {
+            item(key = "h:contacts") { SearchSectionHeader("Contacts") }
+            item(key = "invite-contacts") {
+                ContactsInviteRow(state.showIcons, iconSize) { actions.setSearchContacts(true) }
+            }
+        }
+        if (settings.isNotEmpty()) {
+            item(key = "h:settings") { SearchSectionHeader("Réglages Android") }
+            items(settings, key = { "set:" + it.id }) { shortcut ->
+                SettingsShortcutRow(shortcut, actions, state.showIcons, iconSize, rowStyle)
+            }
+        }
+        if (query.isNotBlank()) {
+            item(key = "h:web") { SearchSectionHeader("Web") }
+            item(key = "web") { WebSearchRow(query, actions, state.showIcons, iconSize) }
         }
     }
 }
@@ -281,10 +404,27 @@ private fun drawerMenu(state: LauncherState, actions: LauncherActions, app: AppE
 
 @Composable
 private fun AlphabeticalList(state: LauncherState, actions: LauncherActions, apps: List<AppEntry>) {
-    val entries = remember(apps) {
-        buildList {
+    val scores = state.usageScores
+    val sortByUsage = state.sortByUsage
+    val showSuggestions = state.showSuggestions
+    val favorites = state.favorites
+    val entries = remember(apps, scores, sortByUsage, showSuggestions, favorites) {
+        // Apps suggérées : les plus utilisées qui ne sont pas déjà sur l'accueil.
+        val suggestions = if (!showSuggestions) {
+            emptyList()
+        } else {
+            val favoriteSet = favorites.toSet()
+            apps.filter { it.key !in favoriteSet && (scores[it.key] ?: 0.0) >= SUGGESTION_MIN_SCORE }
+                .sortedByDescending { scores[it.key] ?: 0.0 }
+                .take(SUGGESTION_SLOTS)
+                .takeIf { it.size >= SUGGESTION_MIN_COUNT }
+                .orEmpty()
+        }
+        val ordered = if (sortByUsage) sortWithinLetters(apps, scores) else apps
+        buildList<DrawerItem> {
+            if (suggestions.isNotEmpty()) add(DrawerItem.Suggestions(suggestions))
             var current: String? = null
-            for (app in apps) {
+            for (app in ordered) {
                 if (app.letter != current) {
                     current = app.letter
                     add(DrawerItem.Header(app.letter))
@@ -339,6 +479,7 @@ private fun AlphabeticalList(state: LauncherState, actions: LauncherActions, app
         ) {
             items(entries, key = { it.id }) { item ->
                 when (item) {
+                    is DrawerItem.Suggestions -> SuggestedApps(item.apps, actions, state.showIcons, state.textScale)
                     is DrawerItem.Header -> LetterHeader(item.letter)
                     is DrawerItem.App -> AppRow(
                         app = item.app,
