@@ -19,6 +19,8 @@ class LauncherState {
     var media by mutableStateOf<MediaInfo?>(null)
     var hasNotificationAccess by mutableStateOf(false)
     var hasLockAccess by mutableStateOf(false)
+    var notificationServiceConnected by mutableStateOf(false)
+    var mediaSessionsAllowed by mutableStateOf(false)
 
     var drawerOpen by mutableStateOf(false)
     var settingsOpen by mutableStateOf(false)
@@ -61,6 +63,7 @@ interface LauncherActions {
     fun openDefaultLauncherSettings()
     fun openNotificationAccessSettings()
     fun openLockAccessSettings()
+    fun restartNotificationService()
     fun mediaPlayPause()
     fun mediaNext()
     fun mediaPrevious()

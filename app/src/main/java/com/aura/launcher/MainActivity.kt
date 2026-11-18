@@ -64,6 +64,12 @@ class MainActivity : ComponentActivity(), LauncherActions {
         lifecycleScope.launch {
             NotificationStore.byApp.collect { state.notifications = it }
         }
+        lifecycleScope.launch {
+            NotificationStore.connected.collect { state.notificationServiceConnected = it }
+        }
+        lifecycleScope.launch {
+            NotificationStore.mediaTokens.collect { media.onNotificationsChanged() }
+        }
 
         setContent {
             AuraTheme {
@@ -77,13 +83,10 @@ class MainActivity : ComponentActivity(), LauncherActions {
         refreshPermissions()
         if (state.hasNotificationAccess) {
             // Après une mise à jour de l'APK, Android oublie parfois de relancer le service.
-            if (!NotificationStore.connected.value) {
-                try {
-                    NotificationListenerService.requestRebind(ComponentName(this, NotificationService::class.java))
-                } catch (e: Exception) {
-                }
-            }
+            if (!NotificationStore.connected.value) rebindNotificationService()
+            NotificationStore.refreshNow()
             media.start()
+            state.mediaSessionsAllowed = media.sessionsAllowed
         }
     }
 
@@ -115,6 +118,13 @@ class MainActivity : ComponentActivity(), LauncherActions {
         state.settingsOpen = false
         state.renaming = null
         state.query = ""
+    }
+
+    private fun rebindNotificationService() {
+        try {
+            NotificationListenerService.requestRebind(ComponentName(this, NotificationService::class.java))
+        } catch (e: Exception) {
+        }
     }
 
     private fun refreshPermissions() {
@@ -290,6 +300,15 @@ class MainActivity : ComponentActivity(), LauncherActions {
     override fun openLockAccessSettings() {
         keepSettingsOpen = true
         tryStart(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+    }
+
+    override fun restartNotificationService() {
+        rebindNotificationService()
+        NotificationStore.refreshNow()
+        media.stop()
+        media.start()
+        state.mediaSessionsAllowed = media.sessionsAllowed
+        toast("Service relancé")
     }
 
     override fun mediaPlayPause() = media.playPause()

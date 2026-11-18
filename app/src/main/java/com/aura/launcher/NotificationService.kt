@@ -1,6 +1,9 @@
 package com.aura.launcher
 
 import android.app.Notification
+import android.media.session.MediaSession
+import android.os.Build
+import android.os.Bundle
 import android.os.UserManager
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -26,10 +29,19 @@ data class NotificationInfo(
 object NotificationStore {
     internal val mutableByApp = MutableStateFlow<Map<String, NotificationInfo>>(emptyMap())
     internal val mutableConnected = MutableStateFlow(false)
+    internal val mutableMediaTokens = MutableStateFlow<List<MediaSession.Token>>(emptyList())
 
     /** Notifications par app (clé : [AppEntry.notificationKey]). */
     val byApp: StateFlow<Map<String, NotificationInfo>> = mutableByApp
     val connected: StateFlow<Boolean> = mutableConnected
+
+    /** Sessions multimédia trouvées dans les notifications (secours si Android refuse la liste des sessions). */
+    val mediaTokens: StateFlow<List<MediaSession.Token>> = mutableMediaTokens
+
+    /** Relit les notifications actives (utile au retour sur l'accueil). */
+    fun refreshNow() {
+        NotificationService.instance?.refresh()
+    }
 }
 
 /**
@@ -40,25 +52,36 @@ object NotificationStore {
 class NotificationService : NotificationListenerService() {
 
     override fun onListenerConnected() {
+        instance = this
         NotificationStore.mutableConnected.value = true
         refresh()
     }
 
     override fun onListenerDisconnected() {
+        instance = null
         NotificationStore.mutableConnected.value = false
         NotificationStore.mutableByApp.value = emptyMap()
+        NotificationStore.mutableMediaTokens.value = emptyList()
+    }
+
+    override fun onDestroy() {
+        if (instance === this) instance = null
+        super.onDestroy()
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) = refresh()
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) = refresh()
 
-    private fun refresh() {
+    internal fun refresh() {
         val notifications = try {
             activeNotifications ?: return
         } catch (e: Exception) {
             return
         }
+        NotificationStore.mutableMediaTokens.value = notifications
+            .sortedByDescending { it.postTime }
+            .mapNotNull { mediaToken(it.notification.extras) }
         val userManager = getSystemService(UserManager::class.java)
         NotificationStore.mutableByApp.value = notifications
             .filter { sbn ->
@@ -78,5 +101,24 @@ class NotificationService : NotificationListenerService() {
                     postTime = latest.postTime,
                 )
             }
+    }
+
+    private fun mediaToken(extras: Bundle?): MediaSession.Token? {
+        if (extras == null || !extras.containsKey(Notification.EXTRA_MEDIA_SESSION)) return null
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                extras.getParcelable(Notification.EXTRA_MEDIA_SESSION, MediaSession.Token::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                extras.getParcelable(Notification.EXTRA_MEDIA_SESSION)
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    companion object {
+        @Volatile
+        internal var instance: NotificationService? = null
     }
 }

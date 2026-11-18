@@ -22,7 +22,7 @@ data class MediaInfo(
  * Android n'y donne accès qu'aux apps qui ont l'accès aux notifications.
  */
 class MediaWatcher(
-    context: Context,
+    private val context: Context,
     private val onChange: (MediaInfo?) -> Unit,
 ) {
     private val sessionManager = context.getSystemService(MediaSessionManager::class.java)
@@ -41,26 +41,37 @@ class MediaWatcher(
         pick(controllers)
     }
 
+    /** Vrai si Android a accepté de nous donner la liste des sessions multimédia. */
+    var sessionsAllowed = false
+        private set
+
     fun start() {
         if (started) return
-        try {
+        started = true
+        sessionsAllowed = try {
             sessionManager.addOnActiveSessionsChangedListener(sessionsListener, listenerComponent, handler)
-            started = true
-            pick(currentSessions())
-        } catch (e: SecurityException) {
-            // Accès aux notifications pas encore accordé.
-            onChange(null)
+            true
+        } catch (e: Exception) {
+            // Accès refusé : on se rabattra sur les sessions trouvées dans les notifications.
+            false
         }
+        pick(currentSessions())
+    }
+
+    /** À appeler quand les notifications changent (nouvelle session multimédia possible). */
+    fun onNotificationsChanged() {
+        if (started) pick(currentSessions())
     }
 
     fun stop() {
-        if (started) {
+        if (sessionsAllowed) {
             try {
                 sessionManager.removeOnActiveSessionsChangedListener(sessionsListener)
             } catch (e: Exception) {
             }
         }
         started = false
+        sessionsAllowed = false
         controller?.unregisterCallback(controllerCallback)
         controller = null
     }
@@ -92,10 +103,20 @@ class MediaWatcher(
 
     val playerPackage: String? get() = controller?.packageName
 
-    private fun currentSessions(): List<MediaController> = try {
-        sessionManager.getActiveSessions(listenerComponent)
-    } catch (e: SecurityException) {
-        emptyList()
+    private fun currentSessions(): List<MediaController> {
+        val fromSystem = try {
+            sessionManager.getActiveSessions(listenerComponent)
+        } catch (e: Exception) {
+            emptyList()
+        }
+        if (fromSystem.isNotEmpty()) return fromSystem
+        return NotificationStore.mediaTokens.value.mapNotNull { token ->
+            try {
+                MediaController(context, token)
+            } catch (e: Exception) {
+                null
+            }
+        }
     }
 
     private fun pick(controllers: List<MediaController>?) {

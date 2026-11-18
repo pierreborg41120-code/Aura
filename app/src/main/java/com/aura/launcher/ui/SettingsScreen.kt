@@ -61,6 +61,9 @@ fun SettingsScreen(state: LauncherState, actions: LauncherActions) {
                 state.showNotificationPreviews,
                 actions::setShowNotificationPreviews,
             )
+            Diagnostics(state)
+            LinkRow("Relancer le service de notifications") { actions.restartNotificationService() }
+            LinkRow("Ouvrir l'accès aux notifications d'Android") { actions.openNotificationAccessSettings() }
         } else {
             PermissionRow(
                 title = "Activer l'accès aux notifications",
@@ -224,5 +227,39 @@ private fun ChoiceRow(
                 )
             }
         }
+    }
+}
+
+/** Petit état des lieux pour comprendre pourquoi les notifications ou le lecteur n'apparaissent pas. */
+@Composable
+private fun Diagnostics(state: LauncherState) {
+    fun line(ok: Boolean, text: String) = (if (ok) "✓ " else "✗ ") + text
+    val lines = listOf(
+        line(true, "Accès aux notifications accordé"),
+        line(
+            state.notificationServiceConnected,
+            if (state.notificationServiceConnected) "Service de notifications connecté"
+            else "Service de notifications pas connecté",
+        ),
+        line(
+            state.notifications.isNotEmpty(),
+            "Apps avec des notifications : ${state.notifications.size}",
+        ),
+        line(
+            state.mediaSessionsAllowed,
+            if (state.mediaSessionsAllowed) "Lecture multimédia accessible"
+            else "Lecture multimédia refusée par Android (secours via les notifications)",
+        ),
+        line(state.media != null, "Musique détectée : ${state.media?.title ?: "aucune"}"),
+    )
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+            .background(AuraColors.Surface, androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+            .padding(14.dp),
+    ) {
+        Text("Diagnostic", color = AuraColors.TextDim, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        lines.forEach { Text(it, color = AuraColors.Text, fontSize = 14.sp, lineHeight = 20.sp) }
     }
 }
