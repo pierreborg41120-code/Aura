@@ -95,7 +95,7 @@ fun HomeScreen(state: LauncherState, actions: LauncherActions) {
                     badge = notif != null,
                     subtitle = if (state.showNotificationPreviews) notif?.preview else null,
                     // --- Raccourcis d'app --- glisser vers la droite ouvre le panneau des raccourcis.
-                    modifier = rememberShortcutSwipe(app, actions) { state.shortcutPanel = ShortcutPanel(app, it) },
+                    modifier = rememberShortcutSwipe(app, state, actions) { state.shortcutPanel = ShortcutPanel(app, it) },
                     menu = buildList {
                         if (index > 0) add(MenuAction("Monter") { actions.moveFavorite(app, -1) })
                         if (index < favorites.lastIndex) add(MenuAction("Descendre") { actions.moveFavorite(app, +1) })

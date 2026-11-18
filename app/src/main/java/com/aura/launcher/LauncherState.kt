@@ -1,5 +1,8 @@
 package com.aura.launcher
 
+import android.appwidget.AppWidgetProviderInfo
+import android.content.Context
+import android.view.View
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -46,6 +49,10 @@ class LauncherState {
     // --- Raccourcis d'app ---
     /** Panneau de raccourcis ouvert depuis l'accueil (null = fermé). */
     var shortcutPanel by mutableStateOf<ShortcutPanel?>(null)
+
+    // --- Widget par app ---
+    /** Widget attaché à chaque app : clé de l'app → appWidgetId. */
+    var widgets by mutableStateOf<Map<String, Int>>(emptyMap())
 
     // --- Sous l'heure : batterie + agenda ---
     var showBattery by mutableStateOf(true)
@@ -98,4 +105,16 @@ interface LauncherActions {
     fun setShowBattery(show: Boolean)
     fun setShowNextEvent(show: Boolean)
     fun openEvent(event: NextEvent)
+
+    // --- Widget par app ---
+    /** Widgets proposés par l'app. À appeler hors du thread principal. */
+    fun loadWidgetProviders(app: AppEntry): List<WidgetProvider>
+    /** Aperçu d'un widget. À appeler hors du thread principal. */
+    fun loadWidgetPreview(provider: WidgetProvider, maxPx: Int): ImageBitmap?
+    /** Attache (ou remplace) le widget de l'app : fenêtre d'autorisation puis configuration si besoin. */
+    fun addWidget(app: AppEntry, provider: WidgetProvider)
+    fun removeWidget(app: AppEntry)
+    /** Vue Android du widget, créée par l'hôte de widgets d'Aura (null si le widget a disparu). */
+    fun createWidgetView(context: Context, appWidgetId: Int): View?
+    fun widgetInfo(appWidgetId: Int): AppWidgetProviderInfo?
 }
