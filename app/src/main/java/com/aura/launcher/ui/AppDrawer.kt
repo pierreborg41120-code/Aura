@@ -556,7 +556,7 @@ private fun LetterBar(available: Set<String>, onLetter: (String) -> Unit) {
         if (letter != selected) {
             selected = letter
             shownLetter = letter
-            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            haptics.auraHaptic(HapticFeedbackType.TextHandleMove)
             currentOnLetter(letter)
         }
     }

@@ -150,6 +150,39 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("drawer_suggestions", true)
         set(value) = sp.edit().putBoolean("drawer_suggestions", value).apply()
 
+    // --- Accueil ---
+    /** Widget libre de l'accueil (null = aucun). */
+    var homeWidgetId: Int?
+        get() = sp.getInt("home_widget_id", -1).takeIf { it >= 0 }
+        set(value) = sp.edit().apply { if (value == null) remove("home_widget_id") else putInt("home_widget_id", value) }.apply()
+
+    /** Position du widget d'accueil : [HOME_WIDGET_UNDER_CLOCK] ou [HOME_WIDGET_ABOVE_FAVORITES]. */
+    var homeWidgetPosition: String
+        get() = sp.getString("home_widget_position", HOME_WIDGET_ABOVE_FAVORITES) ?: HOME_WIDGET_ABOVE_FAVORITES
+        set(value) = sp.edit().putString("home_widget_position", value).apply()
+
+    /** Hauteur choisie (dp) pour le widget d'accueil ; null = hauteur calculée. */
+    var homeWidgetHeight: Int?
+        get() = sp.getInt("home_widget_height", -1).takeIf { it > 0 }
+        set(value) = sp.edit().apply { if (value == null) remove("home_widget_height") else putInt("home_widget_height", value) }.apply()
+
+    var showHeadphoneApps: Boolean
+        get() = sp.getBoolean("headphone_apps", true)
+        set(value) = sp.edit().putBoolean("headphone_apps", value).apply()
+
+    /** Paquets des dernières apps qui ont joué de la musique (le plus récent d'abord). */
+    var recentMusicPackages: List<String>
+        get() = sp.getString("recent_music", "").orEmpty().split(SEP).filter { it.isNotBlank() }
+        set(value) = sp.edit().putString("recent_music", value.joinToString(SEP)).apply()
+
+    var allowRotation: Boolean
+        get() = sp.getBoolean("allow_rotation", false)
+        set(value) = sp.edit().putBoolean("allow_rotation", value).apply()
+
+    var hapticsEnabled: Boolean
+        get() = sp.getBoolean("haptics", true)
+        set(value) = sp.edit().putBoolean("haptics", value).apply()
+
     private companion object {
         const val WIDGET_PREFIX = "widget:"
         // « widget_h: » ne commence pas par « widget: » : les deux familles de clés ne se mélangent pas.
@@ -165,3 +198,7 @@ class Prefs(context: Context) {
         const val SEP = "\n"
     }
 }
+
+// --- Accueil ---
+const val HOME_WIDGET_UNDER_CLOCK = "clock"
+const val HOME_WIDGET_ABOVE_FAVORITES = "favorites"

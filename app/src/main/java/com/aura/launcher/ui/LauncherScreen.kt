@@ -86,5 +86,15 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
 
         // --- Météo ---
         WeatherSheet(state)
+
+        // --- Accueil ---
+        AnimatedVisibility(
+            visible = state.homeWidgetPicking,
+            enter = fadeIn(tween(AuraMotion.standard)) +
+                slideInVertically(tween(AuraMotion.gentle, easing = AuraMotion.enter)) { it / 8 },
+            exit = fadeOut(tween(AuraMotion.quick)),
+        ) {
+            HomeWidgetPicker(state, actions)
+        }
     }
 }

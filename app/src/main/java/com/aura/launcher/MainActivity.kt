@@ -619,6 +619,7 @@ class MainActivity : ComponentActivity(), LauncherActions {
     @Suppress("DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_HOME_WIDGET_CONFIGURE) return onHomeWidgetConfigured(resultCode) // --- Accueil ---
         if (requestCode != REQUEST_WIDGET_CONFIGURE) return
         val pending = pendingWidget ?: return
         if (resultCode == RESULT_OK) finishWidget(pending) else cancelPendingWidget()
@@ -955,6 +956,207 @@ class MainActivity : ComponentActivity(), LauncherActions {
         clipboard.setPrimaryClip(ClipData.newPlainText("Aura", text))
         // Depuis Android 13, le système affiche lui-même une confirmation.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) toast("« $text » copié")
+    }
+
+    // --- Accueil ---
+
+    private var headphones: HeadphonesWatcher? = null
+    private var headphoneAppsJob: Job? = null
+
+    /** Widget d'accueil en cours d'ajout (entre l'allocation de l'id et la fin de la configuration). */
+    private var pendingHomeWidgetId: Int? = null
+
+    /** Fenêtre système d'autorisation des widgets, pour le widget d'accueil. */
+    private val homeWidgetBindRequest =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val id = pendingHomeWidgetId ?: return@registerForActivityResult
+            if (result.resultCode == RESULT_OK) configureHomeWidget(id) else cancelHomeWidget()
+        }
+
+    /** Code de retour de l'écran de réglage du widget d'accueil (différent de celui des cartes). */
+    private val REQUEST_HOME_WIDGET_CONFIGURE = 0x4158
+
+    init {
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onCreate(owner: LifecycleOwner) {
+                state.allowRotation = prefs.allowRotation
+                applyRotation()
+                state.hapticsEnabled = prefs.hapticsEnabled
+                com.aura.launcher.ui.AuraHaptics.enabled = state.hapticsEnabled
+                state.showHeadphoneApps = prefs.showHeadphoneApps
+                state.homeWidgetPosition = prefs.homeWidgetPosition
+                // Widget d'accueil : on l'oublie si son fournisseur a disparu.
+                val id = prefs.homeWidgetId
+                if (id != null && widgets.info(id) == null) {
+                    widgets.deleteId(id)
+                    prefs.homeWidgetId = null
+                    prefs.homeWidgetHeight = null
+                } else {
+                    state.homeWidgetId = id
+                    state.homeWidgetHeight = prefs.homeWidgetHeight
+                }
+                headphones = HeadphonesWatcher(this@MainActivity) { connected ->
+                    if (connected != state.headphonesConnected) {
+                        state.headphonesConnected = connected
+                        refreshHeadphoneApps()
+                    }
+                }
+                // Mémorise les apps qui jouent de la musique, pour les proposer en premier.
+                lifecycleScope.launch {
+                    androidx.compose.runtime.snapshotFlow { state.media?.packageName }.collect { pkg ->
+                        if (pkg != null) {
+                            prefs.recentMusicPackages = (listOf(pkg) + prefs.recentMusicPackages).distinct().take(4)
+                        }
+                    }
+                }
+            }
+
+            override fun onStart(owner: LifecycleOwner) {
+                headphones?.start()
+                // Une app a pu être installée ou désinstallée pendant l'absence.
+                if (state.headphonesConnected) refreshHeadphoneApps()
+            }
+
+            override fun onStop(owner: LifecycleOwner) {
+                headphones?.stop()
+                if (pendingHomeWidgetId == null) state.homeWidgetPicking = false
+            }
+        })
+    }
+
+    private fun applyRotation() {
+        requestedOrientation = if (state.allowRotation) {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        } else {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+    }
+
+    /** Cherche (hors du thread principal) les apps de musique à proposer aux écouteurs. */
+    private fun refreshHeadphoneApps() {
+        headphoneAppsJob?.cancel()
+        if (!state.headphonesConnected || !state.showHeadphoneApps) {
+            state.headphonePackages = emptyList()
+            return
+        }
+        // Les paquets sont reliés aux apps installées au moment de l'affichage (voir HeadphonesRow).
+        headphoneAppsJob = lifecycleScope.launch {
+            state.headphonePackages = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                HeadphonesWatcher.musicPackages(this@MainActivity, prefs.recentMusicPackages)
+            }
+        }
+    }
+
+    override fun loadAllWidgetGroups(): List<WidgetGroup> = widgets.allProviderGroups()
+
+    override fun addHomeWidget(provider: WidgetProvider) {
+        state.homeWidgetPicking = false
+        cancelHomeWidget()
+        val id = try {
+            widgets.allocateId()
+        } catch (e: Exception) {
+            toast("Impossible d'ajouter ce widget")
+            return
+        }
+        pendingHomeWidgetId = id
+        widgets.protectedIds += id
+        if (widgets.bindIfAllowed(id, provider)) {
+            configureHomeWidget(id)
+            return
+        }
+        val intent = Intent(android.appwidget.AppWidgetManager.ACTION_APPWIDGET_BIND)
+            .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+            .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, provider.info.provider)
+            .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_PROVIDER_PROFILE, provider.info.profile)
+            .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_OPTIONS, WidgetRepository.bindOptions())
+        try {
+            homeWidgetBindRequest.launch(intent)
+        } catch (e: Exception) {
+            cancelHomeWidget()
+            toast("Android refuse l'ajout de widgets")
+        }
+    }
+
+    private fun configureHomeWidget(id: Int) {
+        val info = widgets.info(id)
+        if (info == null) {
+            cancelHomeWidget()
+            toast("Impossible d'ajouter ce widget")
+            return
+        }
+        if (info.configure == null) {
+            finishHomeWidget(id)
+            return
+        }
+        try {
+            // Méthode de l'hôte : gère aussi le profil pro et les écrans de réglage non exportés.
+            // Le résultat arrive dans onActivityResult (REQUEST_HOME_WIDGET_CONFIGURE).
+            widgets.host.startAppWidgetConfigureActivityForResult(this, id, 0, REQUEST_HOME_WIDGET_CONFIGURE, null)
+        } catch (e: Exception) {
+            cancelHomeWidget()
+            toast("Ce widget ne peut pas être configuré")
+        }
+    }
+
+    private fun onHomeWidgetConfigured(resultCode: Int) {
+        val id = pendingHomeWidgetId ?: return
+        if (resultCode == RESULT_OK) finishHomeWidget(id) else cancelHomeWidget()
+    }
+
+    private fun cancelHomeWidget() {
+        pendingHomeWidgetId?.let {
+            widgets.deleteId(it)
+            widgets.protectedIds -= it
+        }
+        pendingHomeWidgetId = null
+    }
+
+    /** Enregistre le nouveau widget d'accueil (en supprimant l'ancien) et revient à l'accueil. */
+    private fun finishHomeWidget(id: Int) {
+        pendingHomeWidgetId = null
+        widgets.protectedIds -= id
+        val old = state.homeWidgetId
+        state.homeWidgetId = id
+        prefs.homeWidgetId = id
+        if (old != null && old != id) widgets.deleteId(old)
+        setHomeWidgetHeight(null)
+        state.settingsOpen = false
+    }
+
+    override fun removeHomeWidget() {
+        val id = state.homeWidgetId ?: return
+        state.homeWidgetId = null
+        prefs.homeWidgetId = null
+        widgets.deleteId(id)
+        setHomeWidgetHeight(null)
+    }
+
+    override fun setHomeWidgetPosition(position: String) {
+        state.homeWidgetPosition = position
+        prefs.homeWidgetPosition = position
+    }
+
+    override fun setHomeWidgetHeight(heightDp: Int?) {
+        state.homeWidgetHeight = heightDp
+        prefs.homeWidgetHeight = heightDp
+    }
+
+    override fun setShowHeadphoneApps(show: Boolean) {
+        state.showHeadphoneApps = show
+        prefs.showHeadphoneApps = show
+        refreshHeadphoneApps()
+    }
+
+    override fun setAllowRotation(allow: Boolean) {
+        state.allowRotation = allow
+        prefs.allowRotation = allow
+        applyRotation()
+    }
+
+    override fun setHapticsEnabled(enabled: Boolean) {
+        state.hapticsEnabled = enabled
+        prefs.hapticsEnabled = enabled
+        com.aura.launcher.ui.AuraHaptics.enabled = enabled
     }
 
     private companion object {

@@ -92,6 +92,21 @@ class LauncherState {
     var showSuggestions by mutableStateOf(true)
     /** Scores d'utilisation (clé de l'app → score), mis à jour à chaque retour sur Aura. */
     var usageScores by mutableStateOf<Map<String, Double>>(emptyMap())
+
+    // --- Accueil ---
+    /** Widget libre de l'accueil (null = aucun). */
+    var homeWidgetId by mutableStateOf<Int?>(null)
+    var homeWidgetPosition by mutableStateOf(HOME_WIDGET_ABOVE_FAVORITES)
+    /** Hauteur choisie (dp) ; null = hauteur calculée d'après le widget. */
+    var homeWidgetHeight by mutableStateOf<Int?>(null)
+    /** Sélecteur du widget d'accueil ouvert. */
+    var homeWidgetPicking by mutableStateOf(false)
+    var showHeadphoneApps by mutableStateOf(true)
+    var headphonesConnected by mutableStateOf(false)
+    /** Paquets des apps de musique à proposer aux écouteurs, par ordre de préférence. */
+    var headphonePackages by mutableStateOf<List<String>>(emptyList())
+    var allowRotation by mutableStateOf(false)
+    var hapticsEnabled by mutableStateOf(true)
 }
 
 /** Ce que l'interface peut demander à l'activité. */
@@ -188,4 +203,17 @@ interface LauncherActions {
     fun openSystemSetting(shortcut: com.aura.launcher.search.SettingsShortcut)
     fun webSearch(query: String)
     fun copyToClipboard(text: String)
+
+    // --- Accueil ---
+    /** Tous les widgets installés, groupés par app. À appeler hors du thread principal. */
+    fun loadAllWidgetGroups(): List<WidgetGroup>
+    /** Ajoute (ou remplace) le widget de l'accueil : autorisation puis configuration si besoin. */
+    fun addHomeWidget(provider: WidgetProvider)
+    fun removeHomeWidget()
+    fun setHomeWidgetPosition(position: String)
+    /** null revient à la hauteur calculée. */
+    fun setHomeWidgetHeight(heightDp: Int?)
+    fun setShowHeadphoneApps(show: Boolean)
+    fun setAllowRotation(allow: Boolean)
+    fun setHapticsEnabled(enabled: Boolean)
 }

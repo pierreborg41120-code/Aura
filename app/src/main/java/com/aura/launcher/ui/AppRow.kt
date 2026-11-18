@@ -75,7 +75,7 @@ fun AppRow(
                 .combinedClickable(
                     onClick = { actions.launch(app) },
                     onLongClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        haptics.auraHaptic(HapticFeedbackType.LongPress)
                         menuOpen = true
                     },
                 )

@@ -143,7 +143,7 @@ fun rememberShortcutSwipe(
     val hasShortcuts = hasContent()
 
     fun haptic(constant: Int) {
-        view.performHapticFeedback(constant)
+        view.auraHaptic(constant)
     }
 
     return Modifier
@@ -612,7 +612,7 @@ private fun AppWidget(
                         val next = (before + amount / density).coerceIn(range.first.toFloat(), range.last.toFloat())
                         // Petit retour haptique en butée.
                         if (next != before && (next == range.first.toFloat() || next == range.last.toFloat())) {
-                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            view.auraHaptic(HapticFeedbackConstants.CLOCK_TICK)
                         }
                         dragHeight = next
                     },
