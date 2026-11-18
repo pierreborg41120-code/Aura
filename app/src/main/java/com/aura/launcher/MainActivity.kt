@@ -29,6 +29,13 @@ import com.aura.launcher.ui.AuraTheme
 import com.aura.launcher.ui.LauncherScreen
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+// --- Tiroir et recherche ---
+import android.app.SearchManager
+import android.content.ClipData
+import android.content.ClipboardManager
+import com.aura.launcher.search.ContactResult
+import com.aura.launcher.search.ContactSearch
+import com.aura.launcher.search.SettingsShortcut
 
 class MainActivity : ComponentActivity(), LauncherActions {
 
@@ -223,6 +230,8 @@ class MainActivity : ComponentActivity(), LauncherActions {
         try {
             getSystemService(LauncherApps::class.java)
                 .startMainActivity(app.component, app.user, null, null)
+            // --- Tiroir et recherche ---
+            usage.record(app.key)
         } catch (e: Exception) {
             toast("Impossible d'ouvrir ${app.label}")
             refreshApps()
@@ -822,6 +831,130 @@ class MainActivity : ComponentActivity(), LauncherActions {
     override fun setWeatherFahrenheit(fahrenheit: Boolean) {
         state.weatherFahrenheit = fahrenheit
         prefs.weatherFahrenheit = fahrenheit
+    }
+
+    // --- Tiroir et recherche ---
+
+    private val usage by lazy { UsageTracker(this) }
+
+    /** Fenêtre système « Autoriser Aura à accéder à vos contacts ? ». */
+    private val contactsPermissionRequest =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            state.hasContactsAccess = granted
+            if (granted) {
+                state.searchContacts = true
+                prefs.searchContacts = true
+            } else if (!shouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS)) {
+                // Refus définitif : Android n'affichera plus la fenêtre, on ouvre la page d'Aura.
+                toast("Touche « Autorisations » → « Contacts » → « Autoriser »")
+                openAuraAppDetails()
+            }
+        }
+
+    // Même principe que pour l'agenda : branché sur le cycle de vie, sans toucher à onCreate/onStart.
+    init {
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onCreate(owner: LifecycleOwner) {
+                state.searchContacts = prefs.searchContacts
+                state.sortByUsage = prefs.sortByUsage
+                state.showSuggestions = prefs.showSuggestions
+            }
+
+            override fun onStart(owner: LifecycleOwner) {
+                // Les scores ne changent qu'au retour sur Aura : la liste ne bouge pas pendant un lancement.
+                state.usageScores = usage.scores()
+            }
+
+            override fun onResume(owner: LifecycleOwner) {
+                // L'autorisation a pu être accordée ou retirée dans les réglages d'Android.
+                state.hasContactsAccess = ContactSearch.hasPermission(this@MainActivity)
+            }
+        })
+    }
+
+    override fun setSearchContacts(enabled: Boolean) {
+        if (!enabled) {
+            state.searchContacts = false
+            prefs.searchContacts = false
+            return
+        }
+        if (ContactSearch.hasPermission(this)) {
+            state.hasContactsAccess = true
+            state.searchContacts = true
+            prefs.searchContacts = true
+        } else {
+            contactsPermissionRequest.launch(Manifest.permission.READ_CONTACTS)
+        }
+    }
+
+    override fun setSortByUsage(enabled: Boolean) {
+        state.sortByUsage = enabled
+        prefs.sortByUsage = enabled
+    }
+
+    override fun setShowSuggestions(show: Boolean) {
+        state.showSuggestions = show
+        prefs.showSuggestions = show
+    }
+
+    override fun clearUsage() {
+        usage.clear()
+        state.usageScores = emptyMap()
+        toast("Historique d'utilisation effacé")
+    }
+
+    override fun searchContacts(query: String): List<ContactResult> = ContactSearch.search(this, query)
+
+    override fun loadContactPhoto(contact: ContactResult, sizePx: Int): ImageBitmap? =
+        ContactSearch.loadPhoto(this, contact, sizePx)
+
+    override fun openContact(contact: ContactResult) =
+        tryStart(Intent(Intent.ACTION_VIEW, ContactSearch.contactUri(contact)))
+
+    override fun dialContact(contact: ContactResult) {
+        val phone = contact.phone
+        if (phone == null) {
+            openContact(contact)
+            return
+        }
+        tryStart(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", phone, null)))
+    }
+
+    override fun openSystemSetting(shortcut: SettingsShortcut) {
+        for (action in shortcut.intentActions + Settings.ACTION_SETTINGS) {
+            try {
+                startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                return
+            } catch (e: Exception) {
+                // Page absente chez ce constructeur : on essaie la suivante.
+            }
+        }
+        toast("Impossible d'ouvrir les réglages")
+    }
+
+    override fun webSearch(query: String) {
+        val q = query.trim()
+        if (q.isEmpty()) return
+        try {
+            startActivity(
+                Intent(Intent.ACTION_WEB_SEARCH)
+                    .putExtra(SearchManager.QUERY, q)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        } catch (e: Exception) {
+            // Pas d'app qui gère la recherche web : on ouvre le navigateur sur un moteur de recherche.
+            tryStart(
+                Intent(Intent.ACTION_VIEW, Uri.parse("https://duckduckgo.com/?q=" + Uri.encode(q))),
+                "Aucun navigateur installé",
+            )
+        }
+    }
+
+    override fun copyToClipboard(text: String) {
+        val clipboard = getSystemService(ClipboardManager::class.java) ?: return
+        clipboard.setPrimaryClip(ClipData.newPlainText("Aura", text))
+        // Depuis Android 13, le système affiche lui-même une confirmation.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) toast("« $text » copié")
     }
 
     private companion object {

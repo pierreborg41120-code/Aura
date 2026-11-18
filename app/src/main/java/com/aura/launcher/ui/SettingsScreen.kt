@@ -56,6 +56,7 @@ fun SettingsScreen(state: LauncherState, actions: LauncherActions) {
             onSelect = actions::setTextScale,
         )
 
+        com.aura.launcher.ui.settings.DrawerSettings(state, actions) // --- Tiroir et recherche ---
         SectionTitle("Notifications et musique")
         if (state.hasNotificationAccess) {
             ToggleRow(
