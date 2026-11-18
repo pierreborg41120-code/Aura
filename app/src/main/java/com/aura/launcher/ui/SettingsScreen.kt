@@ -154,6 +154,7 @@ fun SettingsScreen(state: LauncherState, actions: LauncherActions) {
             style = AuraType.caption,
             modifier = Modifier.padding(bottom = AuraSpace.s),
         )
+        com.aura.launcher.ui.settings.WeatherSettings(state, actions) // --- Météo ---
 
         Spacer(Modifier.height(AuraSpace.xxl + AuraSpace.xs))
         Text(

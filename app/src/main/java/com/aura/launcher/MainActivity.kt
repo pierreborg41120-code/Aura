@@ -654,6 +654,167 @@ class MainActivity : ComponentActivity(), LauncherActions {
         prefs.widgetHeights = updated
     }
 
+    // --- Météo ---
+
+    private var weatherJob: Job? = null
+
+    /** Fenêtre système « Autoriser Aura à accéder à la position de cet appareil ? ». */
+    private val locationPermissionRequest =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            state.weatherEnabled = true
+            prefs.weatherEnabled = true
+            if (granted) {
+                selectWeatherMode(useCity = false)
+            } else {
+                // Sans position, on propose la ville saisie à la main.
+                selectWeatherMode(useCity = true)
+                if (!shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION) &&
+                    weatherLocationAsked
+                ) {
+                    // Refus définitif : Android n'affichera plus la fenêtre, on ouvre la page d'Aura.
+                    toast("Touche « Autorisations » → « Position » → « Autoriser »")
+                    openAuraAppDetails()
+                } else {
+                    state.weatherStatus = "Position refusée : choisis une ville ci-dessous."
+                }
+            }
+            weatherLocationAsked = true
+        }
+
+    /** Vrai après une première demande de position dans cette session (pour repérer un refus définitif). */
+    private var weatherLocationAsked = false
+
+    init {
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onCreate(owner: LifecycleOwner) {
+                state.weatherEnabled = prefs.weatherEnabled
+                state.weatherUseCity = prefs.weatherUseCity
+                state.weatherFahrenheit = prefs.weatherFahrenheit
+                state.weatherCity = prefs.weatherCity
+            }
+
+            override fun onStart(owner: LifecycleOwner) {
+                // Retour sur l'accueil : dernière valeur tout de suite, mise à jour si elle a plus de 30 min.
+                refreshWeather(force = false)
+            }
+
+            override fun onStop(owner: LifecycleOwner) {
+                state.weatherSheetOpen = false
+            }
+        })
+    }
+
+    /** Affiche la réponse en cache, ou rien si elle a plus de 6 h. */
+    private fun showCachedWeather() {
+        val raw = prefs.weatherCache
+        val data = raw?.let { WeatherData.parse(it, prefs.weatherFetchedAt) }
+        state.weather = data?.takeIf { !it.isStale() }
+    }
+
+    private fun clearWeatherCache() {
+        weatherJob?.cancel()
+        prefs.weatherCache = null
+        prefs.weatherFetchedAt = 0L
+        state.weather = null
+    }
+
+    private fun refreshWeather(force: Boolean) {
+        if (!state.weatherEnabled) {
+            state.weather = null
+            return
+        }
+        showCachedWeather()
+        val age = System.currentTimeMillis() - prefs.weatherFetchedAt
+        if (!force && prefs.weatherCache != null && age < WeatherData.REFRESH_MS) return
+        if (!force && weatherJob?.isActive == true) return
+        weatherJob?.cancel()
+        weatherJob = lifecycleScope.launch {
+            val coords = if (state.weatherUseCity) {
+                val city = state.weatherCity ?: return@launch
+                city.lat to city.lon
+            } else {
+                if (!WeatherLocator.hasPermission(this@MainActivity)) {
+                    state.weatherStatus = "Accès à la position retiré : touche « Ma position » ou choisis une ville."
+                    return@launch
+                }
+                WeatherLocator.locate(this@MainActivity) ?: run {
+                    state.weatherStatus = "Position introuvable : active la localisation, ou choisis une ville."
+                    return@launch
+                }
+            }
+            val raw = WeatherClient.fetchForecast(coords.first, coords.second)
+            val now = System.currentTimeMillis()
+            val data = raw?.let { WeatherData.parse(it, now) }
+            if (raw == null || data == null) {
+                state.weatherStatus = if (state.weather != null) {
+                    "Pas de connexion : dernière météo connue affichée."
+                } else {
+                    "Pas de connexion : la météo s'affichera au prochain retour sur l'accueil."
+                }
+                return@launch
+            }
+            prefs.weatherCache = raw
+            prefs.weatherFetchedAt = now
+            state.weather = data
+            state.weatherStatus = null
+        }
+    }
+
+    /** Change de source (position ou ville) : l'ancienne météo ne correspond plus au lieu. */
+    private fun selectWeatherMode(useCity: Boolean) {
+        if (state.weatherUseCity != useCity) clearWeatherCache()
+        state.weatherUseCity = useCity
+        prefs.weatherUseCity = useCity
+        state.weatherStatus = null
+        refreshWeather(force = true)
+    }
+
+    override fun setWeatherEnabled(enabled: Boolean) {
+        if (!enabled) {
+            state.weatherEnabled = false
+            prefs.weatherEnabled = false
+            state.weatherStatus = null
+            state.weatherSheetOpen = false
+            clearWeatherCache()
+            return
+        }
+        if (!state.weatherUseCity && !WeatherLocator.hasPermission(this)) {
+            // La météo s'active une fois la fenêtre de position fermée (acceptée ou non).
+            locationPermissionRequest.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+            return
+        }
+        state.weatherEnabled = true
+        prefs.weatherEnabled = true
+        refreshWeather(force = true)
+    }
+
+    override fun useWeatherLocation() {
+        if (WeatherLocator.hasPermission(this)) {
+            selectWeatherMode(useCity = false)
+        } else {
+            locationPermissionRequest.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+    }
+
+    override fun useWeatherCity() = selectWeatherMode(useCity = true)
+
+    override suspend fun searchWeatherCity(name: String): List<WeatherPlace>? = WeatherClient.searchCity(name)
+
+    override fun setWeatherCity(place: WeatherPlace) {
+        clearWeatherCache()
+        state.weatherCity = place
+        prefs.weatherCity = place
+        state.weatherUseCity = true
+        prefs.weatherUseCity = true
+        state.weatherStatus = null
+        refreshWeather(force = true)
+    }
+
+    override fun setWeatherFahrenheit(fahrenheit: Boolean) {
+        state.weatherFahrenheit = fahrenheit
+        prefs.weatherFahrenheit = fahrenheit
+    }
+
     private companion object {
         const val REQUEST_WIDGET_CONFIGURE = 0x4157
     }

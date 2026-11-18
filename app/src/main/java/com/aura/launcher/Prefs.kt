@@ -86,6 +86,52 @@ class Prefs(context: Context) {
             editor.apply()
         }
 
+    // --- Météo ---
+    /** Désactivée par défaut : rien n'est envoyé sur Internet tant que l'utilisateur ne l'a pas activée. */
+    var weatherEnabled: Boolean
+        get() = sp.getBoolean("weather_enabled", false)
+        set(value) = sp.edit().putBoolean("weather_enabled", value).apply()
+
+    /** Vrai = ville saisie à la main ; faux = position du téléphone. */
+    var weatherUseCity: Boolean
+        get() = sp.getBoolean("weather_use_city", false)
+        set(value) = sp.edit().putBoolean("weather_use_city", value).apply()
+
+    var weatherFahrenheit: Boolean
+        get() = sp.getBoolean("weather_fahrenheit", false)
+        set(value) = sp.edit().putBoolean("weather_fahrenheit", value).apply()
+
+    /** Ville choisie (coordonnées déjà arrondies à 2 décimales). */
+    var weatherCity: WeatherPlace?
+        get() {
+            val name = sp.getString("weather_city_name", null) ?: return null
+            val lat = sp.getString("weather_city_lat", null)?.toDoubleOrNull() ?: return null
+            val lon = sp.getString("weather_city_lon", null)?.toDoubleOrNull() ?: return null
+            return WeatherPlace(name, sp.getString("weather_city_detail", "").orEmpty(), lat, lon)
+        }
+        set(value) {
+            val editor = sp.edit()
+            if (value == null) {
+                listOf("weather_city_name", "weather_city_detail", "weather_city_lat", "weather_city_lon")
+                    .forEach { editor.remove(it) }
+            } else {
+                editor.putString("weather_city_name", value.name)
+                    .putString("weather_city_detail", value.detail)
+                    .putString("weather_city_lat", value.lat.toString())
+                    .putString("weather_city_lon", value.lon.toString())
+            }
+            editor.apply()
+        }
+
+    /** Dernière réponse brute d'Open-Meteo et son heure de réception (cache hors ligne). */
+    var weatherCache: String?
+        get() = sp.getString("weather_cache", null)
+        set(value) = sp.edit().putString("weather_cache", value).apply()
+
+    var weatherFetchedAt: Long
+        get() = sp.getLong("weather_fetched_at", 0L)
+        set(value) = sp.edit().putLong("weather_fetched_at", value).apply()
+
     private companion object {
         const val WIDGET_PREFIX = "widget:"
         // « widget_h: » ne commence pas par « widget: » : les deux familles de clés ne se mélangent pas.
