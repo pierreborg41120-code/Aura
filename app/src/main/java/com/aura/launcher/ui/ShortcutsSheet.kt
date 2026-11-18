@@ -75,7 +75,17 @@ import com.aura.launcher.AppEntry
 import com.aura.launcher.AppShortcut
 import com.aura.launcher.LauncherActions
 import com.aura.launcher.LauncherState
+import com.aura.launcher.NotificationInfo
 import com.aura.launcher.ShortcutPanel
+import com.aura.launcher.WidgetProvider
+import com.aura.launcher.WidgetRepository
+import android.widget.FrameLayout
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.key
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -85,19 +95,21 @@ import kotlin.math.exp
 private const val MENU_MAX = 4
 
 /**
- * Geste « glisser vers la droite » sur un favori pour ouvrir ses raccourcis.
+ * Geste « glisser vers la droite » sur un favori pour ouvrir la carte de l'app
+ * (notifications, widget, raccourcis).
  *
  * La ligne suit le doigt avec une résistance élastique ; un chevron apparaît à gauche et passe à la
- * couleur d'accent (avec un petit retour haptique) quand on a glissé assez loin. Si l'app n'a aucun
- * raccourci, la ligne bouge à peine et revient (léger rebond), rien ne s'ouvre.
+ * couleur d'accent (avec un petit retour haptique) quand on a glissé assez loin. Si l'app n'a rien à
+ * montrer (ni raccourci, ni notification, ni widget), la ligne bouge à peine et revient (léger rebond).
  *
  * Seul le geste horizontal est capté : les glissements verticaux (tiroir / notifications),
  * l'appui long et le double-toucher de l'accueil continuent de fonctionner.
- * Les lecteurs d'écran ont une action « Raccourcis » équivalente.
+ * Les lecteurs d'écran ont une action « Carte de l'app » équivalente.
  */
 @Composable
 fun rememberShortcutSwipe(
     app: AppEntry,
+    state: LauncherState,
     actions: LauncherActions,
     onOpen: (List<AppShortcut>) -> Unit,
 ): Modifier {
@@ -115,12 +127,20 @@ fun rememberShortcutSwipe(
 
     val shift = remember(app.key) { Animatable(0f) }
     var shortcuts by remember(app.key) { mutableStateOf<List<AppShortcut>>(emptyList()) }
+    var hasWidgetProviders by remember(app.key) { mutableStateOf(false) }
 
-    // Préchargement : on sait d'avance si l'app a des raccourcis (pour le rebond et l'accessibilité).
+    // Préchargement : on sait d'avance si l'app a quelque chose à montrer (rebond, accessibilité).
     LaunchedEffect(app.key) {
         shortcuts = withContext(Dispatchers.IO) { actions.loadShortcuts(app) }
+        hasWidgetProviders = withContext(Dispatchers.IO) { actions.loadWidgetProviders(app).isNotEmpty() }
     }
-    val hasShortcuts = shortcuts.isNotEmpty()
+
+    /** Vrai si la carte aurait du contenu : raccourcis, notifications, widget attaché ou à ajouter. */
+    fun hasContent(): Boolean =
+        shortcuts.isNotEmpty() || hasWidgetProviders ||
+            state.notificationsFor(app) != null || state.widgets[app.key] != null
+
+    val hasShortcuts = hasContent()
 
     fun haptic(constant: Int) {
         view.performHapticFeedback(constant)
@@ -130,7 +150,7 @@ fun rememberShortcutSwipe(
         .semantics {
             if (hasShortcuts) {
                 customActions = listOf(
-                    CustomAccessibilityAction("Raccourcis") {
+                    CustomAccessibilityAction("Carte de l'app") {
                         currentOnOpen(shortcuts)
                         true
                     },
@@ -142,7 +162,7 @@ fun rememberShortcutSwipe(
             var armed = false
 
             fun release(open: Boolean) {
-                if (open && armed && shortcuts.isNotEmpty()) currentOnOpen(shortcuts)
+                if (open && armed && hasContent()) currentOnOpen(shortcuts)
                 if (!open && armed && Build.VERSION.SDK_INT >= 34) {
                     haptic(HapticFeedbackConstants.GESTURE_THRESHOLD_DEACTIVATE)
                 }
@@ -166,7 +186,7 @@ fun rememberShortcutSwipe(
                     }
                 },
                 onDragEnd = {
-                    if (shortcuts.isEmpty() && raw > openAt && Build.VERSION.SDK_INT >= 30) {
+                    if (!hasContent() && raw > openAt && Build.VERSION.SDK_INT >= 30) {
                         haptic(HapticFeedbackConstants.REJECT)
                     }
                     release(open = true)
@@ -176,11 +196,11 @@ fun rememberShortcutSwipe(
                     change.consume()
                     // Seule la droite compte ; vers la gauche, la ligne reste en place.
                     raw = (raw + amount).coerceAtLeast(0f)
-                    val limit = if (shortcuts.isEmpty()) bumpShift else maxShift
+                    val limit = if (hasContent()) maxShift else bumpShift
                     // Résistance élastique : plus on tire, moins la ligne avance.
                     val target = limit * (1f - exp(-raw / limit))
                     scope.launch { shift.snapTo(target) }
-                    val nowArmed = shortcuts.isNotEmpty() && target >= openAt
+                    val nowArmed = hasContent() && target >= openAt
                     if (nowArmed != armed) {
                         armed = nowArmed
                         if (armed) {
@@ -202,7 +222,7 @@ fun rememberShortcutSwipe(
             val x = shift.value
             // Le contenu est seulement décalé au dessin : la mise en page ne bouge pas.
             translate(left = x) { this@drawWithContent.drawContent() }
-            if (x > 0.5f && shortcuts.isNotEmpty()) {
+            if (x > 0.5f && hasContent()) {
                 val progress = (x / openAt).coerceIn(0f, 1f)
                 val color = if (progress >= 1f) AuraColors.Accent else AuraColors.TextDim
                 val cx = x / 2f
@@ -270,8 +290,21 @@ private fun ShortcutsCard(
     actions: LauncherActions,
     onClose: () -> Unit,
 ) {
+    val app = panel.app
     val dismissDrag = with(LocalDensity.current) { 56.dp.toPx() }
     val shape = RoundedCornerShape(24.dp)
+    // La carte ne dépasse jamais ~80 % de l'écran : au-delà, le contenu défile sous l'en-tête.
+    val maxBody = (LocalConfiguration.current.screenHeightDp * 0.8f).dp - 72.dp
+
+    // Sélecteur de widgets affiché à la place du contenu (même carte, pas de nouvelle fenêtre).
+    var picking by remember(app.key) { mutableStateOf(false) }
+    val providers by produceState<List<WidgetProvider>>(initialValue = emptyList(), app.key) {
+        value = withContext(Dispatchers.IO) { actions.loadWidgetProviders(app) }
+    }
+    val widgetId = state.widgets[app.key]
+    val notif = state.notificationsFor(app)
+
+    BackHandler(enabled = picking) { picking = false }
 
     Column(
         Modifier
@@ -281,65 +314,321 @@ private fun ShortcutsCard(
             .clip(shape)
             .background(AuraColors.Surface)
             .border(1.dp, AuraColors.TextFaint.copy(alpha = 0.12f), shape)
-            // Absorbe les touchers sur la carte (sinon ils fermeraient le panneau) ; glisser vers le bas ferme.
+            // Absorbe les touchers sur la carte (sinon ils fermeraient le panneau).
             .pointerInput(Unit) { detectTapGestures { } }
-            .pointerInput(Unit) {
-                var total = 0f
-                detectVerticalDragGestures(
-                    onDragStart = { total = 0f },
-                    onDragEnd = { if (total > dismissDrag) onClose() },
-                    onVerticalDrag = { change, amount ->
-                        change.consume()
-                        total += amount
-                    },
-                )
-            }
-            .padding(vertical = 8.dp),
+            .padding(bottom = 8.dp),
     ) {
-        // En-tête : l'app concernée, en discret.
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 6.dp),
+        // Zone de prise (poignée + en-tête) : seul endroit où « glisser vers le bas » ferme la carte,
+        // pour ne jamais voler les touchers des boutons du widget.
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .pointerInput(Unit) {
+                    var total = 0f
+                    detectVerticalDragGestures(
+                        onDragStart = { total = 0f },
+                        onDragEnd = { if (total > dismissDrag) onClose() },
+                        onVerticalDrag = { change, amount ->
+                            change.consume()
+                            total += amount
+                        },
+                    )
+                },
         ) {
-            AppIcon(panel.app, actions, 18.dp)
-            Spacer(Modifier.width(10.dp))
-            Text(
-                text = panel.app.label,
-                color = AuraColors.TextDim,
-                fontSize = 14.sp,
-                letterSpacing = 0.4.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            Box(
+                Modifier
+                    .padding(top = 10.dp)
+                    .align(Alignment.CenterHorizontally)
+                    .size(width = 32.dp, height = 4.dp)
+                    .background(AuraColors.TextFaint.copy(alpha = 0.35f), CircleShape),
             )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .padding(start = 24.dp, end = 12.dp),
+            ) {
+                AppIcon(app, actions, 18.dp)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = if (picking) "Choisir un widget" else app.label,
+                    color = AuraColors.TextDim,
+                    fontSize = 14.sp,
+                    letterSpacing = 0.4.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (picking) {
+                    TextAction("Annuler", AuraColors.TextDim) { picking = false }
+                }
+            }
         }
 
         Column(
             Modifier
-                .heightIn(max = 460.dp)
+                .heightIn(max = maxBody.coerceAtLeast(160.dp))
                 .verticalScroll(rememberScrollState()),
         ) {
-            panel.shortcuts.forEach { shortcut ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 56.dp)
-                        .clickable(role = Role.Button) {
-                            actions.launchShortcut(shortcut)
-                            onClose()
-                        }
-                        .padding(horizontal = 24.dp, vertical = 8.dp),
-                ) {
-                    ShortcutIcon(shortcut, actions, (26 * state.textScale).dp)
-                    Spacer(Modifier.width(16.dp))
-                    Text(
-                        text = shortcut.label,
-                        color = AuraColors.Text,
-                        fontSize = (19 * state.textScale).sp,
-                        fontWeight = FontWeight.Light,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+            if (picking) {
+                WidgetPicker(
+                    providers = providers,
+                    actions = actions,
+                    onPick = { provider ->
+                        picking = false
+                        actions.addWidget(app, provider)
+                    },
+                )
+            } else {
+                AppCardContent(panel, state, actions, notif, widgetId, providers, onClose) { picking = true }
+            }
+        }
+    }
+}
+
+/** Contenu normal de la carte : notifications, widget, raccourcis, gestion du widget. */
+@Composable
+private fun AppCardContent(
+    panel: ShortcutPanel,
+    state: LauncherState,
+    actions: LauncherActions,
+    notif: NotificationInfo?,
+    widgetId: Int?,
+    providers: List<WidgetProvider>,
+    onClose: () -> Unit,
+    onPickWidget: () -> Unit,
+) {
+    val app = panel.app
+    Column(Modifier.fillMaxWidth()) {
+        // 1. Notifications de l'app : toucher l'aperçu ouvre l'app.
+        if (notif != null) {
+            NotificationBlock(notif, state.textScale) {
+                actions.launch(app)
+                onClose()
+            }
+        }
+
+        // 2. Widget attaché (s'il existe encore).
+        if (widgetId != null) {
+            key(widgetId) { AppWidget(widgetId, actions) }
+            Spacer(Modifier.height(8.dp))
+        }
+
+        // 3. Raccourcis.
+        panel.shortcuts.forEach { shortcut ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 56.dp)
+                    .clickable(role = Role.Button) {
+                        actions.launchShortcut(shortcut)
+                        onClose()
+                    }
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+            ) {
+                ShortcutIcon(shortcut, actions, (26 * state.textScale).dp)
+                Spacer(Modifier.width(16.dp))
+                Text(
+                    text = shortcut.label,
+                    color = AuraColors.Text,
+                    fontSize = (19 * state.textScale).sp,
+                    fontWeight = FontWeight.Light,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        // 4. Gestion du widget, en discret (seulement si l'app en propose ou en a un d'attaché).
+        if (providers.isNotEmpty() || widgetId != null) {
+            HorizontalDivider(
+                color = AuraColors.TextFaint.copy(alpha = 0.12f),
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 4.dp),
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+            ) {
+                if (widgetId == null) {
+                    TextAction("Ajouter un widget", AuraColors.TextDim, onPickWidget)
+                } else {
+                    if (providers.isNotEmpty()) {
+                        TextAction("Changer le widget", AuraColors.TextDim, onPickWidget)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    TextAction("Retirer le widget", AuraColors.TextDim) { actions.removeWidget(app) }
+                }
+            }
+        }
+    }
+}
+
+/** Petit bouton texte discret (zone de toucher d'au moins 48 dp). */
+@Composable
+private fun TextAction(label: String, color: Color, onClick: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.CenterStart,
+        modifier = Modifier
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 12.dp),
+    ) {
+        Text(text = label, color = color, fontSize = 14.sp, letterSpacing = 0.3.sp)
+    }
+}
+
+/** Aperçu des notifications de l'app : un point, le nombre, puis le titre et le texte. */
+@Composable
+private fun NotificationBlock(notif: NotificationInfo, textScale: Float, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 24.dp, vertical = 10.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(6.dp)
+                    .background(AuraColors.Accent, CircleShape),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = if (notif.count > 1) "${notif.count} notifications" else "1 notification",
+                color = AuraColors.TextDim,
+                fontSize = 12.sp,
+                letterSpacing = 0.4.sp,
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        val title = notif.title?.takeIf { it.isNotBlank() }
+        val text = notif.text?.takeIf { it.isNotBlank() }?.replace('\n', ' ')
+        if (title != null) {
+            Text(
+                text = title,
+                color = AuraColors.Text,
+                fontSize = (17 * textScale).sp,
+                fontWeight = FontWeight.Light,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (text != null) {
+            Text(
+                text = text,
+                color = AuraColors.TextDim,
+                fontSize = (14 * textScale).sp,
+                lineHeight = (20 * textScale).sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+    Spacer(Modifier.height(8.dp))
+}
+
+/**
+ * Widget de l'app, sur toute la largeur de la carte. La vue Android est créée par l'hôte de widgets
+ * d'Aura ; ses boutons fonctionnent normalement (rien ne capte leurs touchers au-dessus).
+ */
+@Composable
+private fun AppWidget(appWidgetId: Int, actions: LauncherActions) {
+    val density = LocalDensity.current.density
+    val info = remember(appWidgetId) { actions.widgetInfo(appWidgetId) } ?: return
+    val heightDp = remember(info) { WidgetRepository.preferredHeightDp(info, density) }
+    val widgetShape = RoundedCornerShape(16.dp)
+
+    BoxWithConstraints(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+            .clip(widgetShape)
+            .background(AuraColors.Text.copy(alpha = 0.04f)),
+    ) {
+        val widthDp = maxWidth.value.toInt()
+        AndroidView(
+            factory = { context ->
+                actions.createWidgetView(context, appWidgetId) ?: FrameLayout(context)
+            },
+            update = { view ->
+                // On ne prévient le widget que si la taille a changé (évite des appels système inutiles).
+                val size = widthDp to heightDp
+                if (view.tag != size) {
+                    view.tag = size
+                    WidgetRepository.applySize(view, widthDp, heightDp)
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(heightDp.dp),
+        )
+    }
+}
+
+/** Liste des widgets proposés par l'app, avec leur aperçu. */
+@Composable
+private fun WidgetPicker(
+    providers: List<WidgetProvider>,
+    actions: LauncherActions,
+    onPick: (WidgetProvider) -> Unit,
+) {
+    if (providers.isEmpty()) {
+        Text(
+            text = "Cette app ne propose aucun widget.",
+            color = AuraColors.TextDim,
+            fontSize = 15.sp,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+        )
+        return
+    }
+    val previewMaxPx = with(LocalDensity.current) { 280.dp.roundToPx() }
+    providers.forEach { provider ->
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.Button) { onPick(provider) }
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+        ) {
+            val preview by produceState<ImageBitmap?>(initialValue = null, provider.key) {
+                value = withContext(Dispatchers.IO) { actions.loadWidgetPreview(provider, previewMaxPx) }
+            }
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 72.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(AuraColors.Text.copy(alpha = 0.04f))
+                    .padding(12.dp),
+            ) {
+                preview?.let {
+                    Image(
+                        bitmap = it,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.heightIn(max = 120.dp),
                     )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = provider.label,
+                    color = AuraColors.Text,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Light,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                provider.cells?.let {
+                    Spacer(Modifier.width(10.dp))
+                    Text(text = it, color = AuraColors.TextDim, fontSize = 13.sp)
                 }
             }
         }

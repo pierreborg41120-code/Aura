@@ -31,6 +31,7 @@ app/src/main/java/com/aura/launcher/
   NotificationService.kt  NotificationListenerService + NotificationStore (StateFlow) : points, aperçus, jetons média
   MediaWatcher.kt         Mini-lecteur : MediaSessionManager, avec secours via le jeton de la notification média
   LockService.kt          AccessibilityService minimal : GLOBAL_ACTION_LOCK_SCREEN (double-toucher)
+  WidgetRepository.kt     Hôte de widgets (AppWidgetHost, id 0x4157) : widget par app dans la carte de l'app
   ui/
     LauncherScreen.kt     Racine : accueil + tiroir + réglages + assistant + dialogue de renommage, gestion du Retour
     HomeScreen.kt         Horloge, date, mini-lecteur, favoris ; gestes (haut = tiroir, bas = notifications,
@@ -98,9 +99,10 @@ Ne pas le changer, sinon l'utilisateur devra désinstaller Aura et perdra ses fa
 | Points de notification + aperçu sous les favoris | ✅ testé, OK (après « Autoriser les paramètres restreints ») |
 | Mini-lecteur de musique | ✅ testé, OK |
 | Assistant de configuration (v0.1.4) | ✅ utilisé avec succès par l'utilisateur |
-| Batterie + prochain rendez-vous sous l'heure (v0.1.9) | ⏳ à tester |
-| Raccourcis d'app : glisser un favori à droite, menu d'appui long (v0.1.9) | ⏳ à tester |
-| Nouvelle icône « éclipse » + calque monochrome (v0.1.9) | ⏳ à tester |
+| Batterie + prochain rendez-vous sous l'heure (v0.1.9) | ✅ premier retour positif (« pas mal ») |
+| Raccourcis d'app : glisser un favori à droite, menu d'appui long (v0.1.9) | ✅ premier retour positif (« pas mal ») |
+| Nouvelle icône « éclipse » + calque monochrome (v0.1.9) | ✅ premier retour positif (« pas mal ») |
+| Carte de l'app (glisser un favori : notifications + widget + raccourcis) | ⚠️ nouveau, **à tester** (widget Tesla) |
 
 Si notifications ou lecteur ne marchent toujours pas : demander une capture du bloc **Diagnostic**
 (Réglages d'Aura → « Notifications et musique ») ; chaque ligne ✓/✗ correspond à une étape.

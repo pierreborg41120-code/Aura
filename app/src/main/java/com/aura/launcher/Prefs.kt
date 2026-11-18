@@ -56,7 +56,22 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("status_next_event", false)
         set(value) = sp.edit().putBoolean("status_next_event", value).apply()
 
+    // --- Widget par app ---
+    /** Widget attaché à chaque app : clé de l'app → appWidgetId. */
+    var widgetIds: Map<String, Int>
+        get() = sp.all
+            .filterKeys { it.startsWith(WIDGET_PREFIX) }
+            .mapNotNull { (k, v) -> (v as? Int)?.let { k.removePrefix(WIDGET_PREFIX) to it } }
+            .toMap()
+        set(value) {
+            val editor = sp.edit()
+            sp.all.keys.filter { it.startsWith(WIDGET_PREFIX) }.forEach(editor::remove)
+            value.forEach { (k, v) -> editor.putInt(WIDGET_PREFIX + k, v) }
+            editor.apply()
+        }
+
     private companion object {
+        const val WIDGET_PREFIX = "widget:"
         const val KEY_FAVORITES = "favorites"
         const val KEY_HIDDEN = "hidden"
         const val KEY_ICONS = "show_icons"

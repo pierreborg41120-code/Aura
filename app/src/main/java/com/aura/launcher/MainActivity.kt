@@ -35,6 +35,7 @@ class MainActivity : ComponentActivity(), LauncherActions {
     private lateinit var repo: AppRepository
     private lateinit var prefs: Prefs
     private lateinit var media: MediaWatcher
+    private lateinit var widgets: WidgetRepository
     private val state = LauncherState()
     private var stopObserving: (() -> Unit)? = null
 
@@ -72,6 +73,11 @@ class MainActivity : ComponentActivity(), LauncherActions {
         customLabels = prefs.customLabels
         state.onboardingOpen = !prefs.onboardingDone
 
+        // Widgets : on oublie ceux dont le fournisseur a disparu (app désinstallée…).
+        widgets = WidgetRepository(this)
+        state.widgets = widgets.cleanUp(prefs.widgetIds)
+        prefs.widgetIds = state.widgets
+
         refreshApps()
         stopObserving = repo.observeChanges { refreshApps() }
 
@@ -94,6 +100,7 @@ class MainActivity : ComponentActivity(), LauncherActions {
 
     override fun onStart() {
         super.onStart()
+        widgets.startListening()
         refreshPermissions()
         if (state.hasNotificationAccess) {
             // Après une mise à jour de l'APK, Android oublie parfois de relancer le service.
@@ -119,8 +126,12 @@ class MainActivity : ComponentActivity(), LauncherActions {
     override fun onStop() {
         super.onStop()
         media.stop()
+        widgets.stopListening()
         if (keepSettingsOpen) {
             keepSettingsOpen = false
+            state.drawerOpen = false
+        } else if (pendingWidget != null) {
+            // Écran de configuration d'un widget ouvert : on garde la carte de l'app pour le retour.
             state.drawerOpen = false
         } else {
             resetToHome()
@@ -171,6 +182,14 @@ class MainActivity : ComponentActivity(), LauncherActions {
         lifecycleScope.launch {
             rawApps = repo.loadApps()
             applyLabels()
+            // Une app a pu être désinstallée : son widget ne doit plus apparaître.
+            if (pendingWidget == null && state.widgets.isNotEmpty()) {
+                val valid = widgets.cleanUp(state.widgets)
+                if (valid != state.widgets) {
+                    state.widgets = valid
+                    prefs.widgetIds = valid
+                }
+            }
         }
     }
 
@@ -498,5 +517,125 @@ class MainActivity : ComponentActivity(), LauncherActions {
         } catch (e: Exception) {
             openCalendar()
         }
+    }
+
+    // --- Widget par app ---
+
+    /** Widget en cours d'ajout (entre l'allocation de l'id et la fin de la configuration). */
+    private class PendingWidget(val app: AppEntry, val id: Int)
+
+    private var pendingWidget: PendingWidget? = null
+
+    /** Fenêtre système « Autoriser Aura à créer des widgets et à accéder à leurs données ? ». */
+    private val widgetBindRequest =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            val pending = pendingWidget ?: return@registerForActivityResult
+            if (result.resultCode == RESULT_OK) {
+                configureOrFinish(pending)
+            } else {
+                cancelPendingWidget()
+            }
+        }
+
+    override fun loadWidgetProviders(app: AppEntry): List<WidgetProvider> = widgets.providersFor(app)
+
+    override fun loadWidgetPreview(provider: WidgetProvider, maxPx: Int): ImageBitmap? =
+        widgets.loadPreview(provider, maxPx)
+
+    override fun createWidgetView(context: android.content.Context, appWidgetId: Int): android.view.View? =
+        widgets.createView(context, appWidgetId)
+
+    override fun widgetInfo(appWidgetId: Int): android.appwidget.AppWidgetProviderInfo? = widgets.info(appWidgetId)
+
+    override fun addWidget(app: AppEntry, provider: WidgetProvider) {
+        // Un ajout précédent resté en suspens (rare) : on libère son id.
+        pendingWidget?.let { widgets.deleteId(it.id) }
+        val id = try {
+            widgets.allocateId()
+        } catch (e: Exception) {
+            toast("Impossible d'ajouter ce widget")
+            return
+        }
+        val pending = PendingWidget(app, id)
+        pendingWidget = pending
+        if (widgets.bindIfAllowed(id, provider)) {
+            configureOrFinish(pending)
+            return
+        }
+        // Première fois : Android demande à l'utilisateur d'autoriser Aura.
+        val intent = Intent(android.appwidget.AppWidgetManager.ACTION_APPWIDGET_BIND)
+            .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, id)
+            .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, provider.info.provider)
+            .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_PROVIDER_PROFILE, provider.info.profile)
+            .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_OPTIONS, WidgetRepository.bindOptions())
+        try {
+            widgetBindRequest.launch(intent)
+        } catch (e: Exception) {
+            cancelPendingWidget()
+            toast("Android refuse l'ajout de widgets")
+        }
+    }
+
+    /** Lance l'écran de réglage du widget s'il en a un, sinon termine l'ajout. */
+    private fun configureOrFinish(pending: PendingWidget) {
+        val info = widgets.info(pending.id)
+        if (info == null) {
+            cancelPendingWidget()
+            toast("Impossible d'ajouter ce widget")
+            return
+        }
+        if (info.configure == null) {
+            finishWidget(pending)
+            return
+        }
+        try {
+            widgets.host.startAppWidgetConfigureActivityForResult(this, pending.id, 0, REQUEST_WIDGET_CONFIGURE, null)
+        } catch (e: Exception) {
+            // ActivityNotFoundException, SecurityException… : le widget ne peut pas être réglé.
+            cancelPendingWidget()
+            toast("Ce widget ne peut pas être configuré")
+        }
+    }
+
+    @Deprecated("Seul moyen de recevoir le résultat de startAppWidgetConfigureActivityForResult")
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_WIDGET_CONFIGURE) return
+        val pending = pendingWidget ?: return
+        if (resultCode == RESULT_OK) finishWidget(pending) else cancelPendingWidget()
+    }
+
+    private fun cancelPendingWidget() {
+        pendingWidget?.let { widgets.deleteId(it.id) }
+        pendingWidget = null
+    }
+
+    /** Enregistre le lien app → widget (en supprimant l'ancien) et rouvre la carte de l'app. */
+    private fun finishWidget(pending: PendingWidget) {
+        pendingWidget = null
+        val old = state.widgets[pending.app.key]
+        if (old != null && old != pending.id) widgets.deleteId(old)
+        state.widgets = state.widgets + (pending.app.key to pending.id)
+        prefs.widgetIds = state.widgets
+        if (state.shortcutPanel?.app?.key != pending.app.key) {
+            lifecycleScope.launch {
+                val shortcuts = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    shortcutRepo.shortcutsFor(pending.app)
+                }
+                state.shortcutPanel = ShortcutPanel(pending.app, shortcuts)
+            }
+        }
+    }
+
+    override fun removeWidget(app: AppEntry) {
+        val id = state.widgets[app.key] ?: return
+        widgets.deleteId(id)
+        state.widgets = state.widgets - app.key
+        prefs.widgetIds = state.widgets
+    }
+
+    private companion object {
+        const val REQUEST_WIDGET_CONFIGURE = 0x4157
     }
 }
