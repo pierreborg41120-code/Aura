@@ -86,6 +86,11 @@ class Prefs(context: Context) {
             editor.apply()
         }
 
+    // --- Réponses aux notifications ---
+    var replyFromHome: Boolean
+        get() = sp.getBoolean("reply_from_home", true)
+        set(value) = sp.edit().putBoolean("reply_from_home", value).apply()
+
     private companion object {
         const val WIDGET_PREFIX = "widget:"
         // « widget_h: » ne commence pas par « widget: » : les deux familles de clés ne se mélangent pas.

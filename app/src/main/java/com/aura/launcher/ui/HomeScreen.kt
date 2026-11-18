@@ -47,7 +47,11 @@ import androidx.compose.ui.unit.dp
 import com.aura.launcher.LauncherActions
 import com.aura.launcher.LauncherState
 import com.aura.launcher.ShortcutPanel
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -58,6 +62,7 @@ fun HomeScreen(state: LauncherState, actions: LauncherActions) {
     val swipeThreshold = with(density) { 72.dp.toPx() }
     val haptics = LocalHapticFeedback.current
     val reducedMotion = rememberReducedMotion()
+    val scope = rememberCoroutineScope()
 
     // Apparition douce : l'accueil s'efface sous le tiroir / les réglages et revient en fondu,
     // avec un léger glissement vers le haut. Même chose au retour d'une app (homeEntrance).
@@ -136,6 +141,14 @@ fun HomeScreen(state: LauncherState, actions: LauncherActions) {
                     verticalPadding = AuraSpace.s + AuraSpace.xxs,
                     badge = notif != null,
                     subtitle = if (state.showNotificationPreviews) notif?.preview else null,
+                    // --- Réponses aux notifications --- toucher l'aperçu ouvre la carte de l'app
+                    // sur ses notifications ; toucher le nom lance toujours l'app.
+                    onSubtitleClick = {
+                        scope.launch {
+                            val shortcuts = withContext(Dispatchers.IO) { actions.loadShortcuts(app) }
+                            state.shortcutPanel = ShortcutPanel(app, shortcuts)
+                        }
+                    },
                     // --- Raccourcis d'app --- glisser vers la droite ouvre le panneau des raccourcis.
                     modifier = rememberShortcutSwipe(app, state, actions) { state.shortcutPanel = ShortcutPanel(app, it) },
                     menu = buildList {

@@ -2,6 +2,7 @@ package com.aura.launcher.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,6 +59,8 @@ fun AppRow(
     verticalPadding: Dp = AuraSpace.s + AuraSpace.xxs,
     badge: Boolean = false,
     subtitle: String? = null,
+    // --- Réponses aux notifications --- toucher l'aperçu (au lieu de lancer l'app), si fourni.
+    onSubtitleClick: (() -> Unit)? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
@@ -108,7 +111,17 @@ fun AppRow(
                         color = AuraColors.TextDim,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = AuraSpace.xxs),
+                        modifier = Modifier
+                            .padding(top = AuraSpace.xxs)
+                            .then(
+                                if (onSubtitleClick != null) {
+                                    Modifier
+                                        .clip(RoundedCornerShape(AuraRadius.s))
+                                        .clickable(onClickLabel = "Voir les notifications", onClick = onSubtitleClick)
+                                } else {
+                                    Modifier
+                                },
+                            ),
                     )
                 }
             }

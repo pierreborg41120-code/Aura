@@ -1,12 +1,18 @@
 package com.aura.launcher
 
+import android.app.ActivityOptions
 import android.app.Notification
+import android.app.PendingIntent
+import android.app.RemoteInput
+import android.content.Context
+import android.content.Intent
 import android.media.session.MediaSession
 import android.os.Build
 import android.os.Bundle
 import android.os.UserManager
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import androidx.core.app.NotificationCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -16,6 +22,8 @@ data class NotificationInfo(
     val title: String?,
     val text: String?,
     val postTime: Long,
+    /** Toutes les notifications de l'app, de la plus récente à la plus ancienne. */
+    val items: List<NotificationItem> = emptyList(),
 ) {
     /** Texte court à afficher sous le nom de l'app. */
     val preview: String?
@@ -24,6 +32,32 @@ data class NotificationInfo(
             .replace('\n', ' ')
             .ifBlank { null }
 }
+
+/** Un message d'une conversation (MessagingStyle). [sender] null = message envoyé par l'utilisateur. */
+data class ChatMessage(val sender: String?, val text: String, val time: Long)
+
+/** Action simple d'une notification (« Marquer comme lu »…). */
+data class NotificationAction(val label: String, val intent: PendingIntent)
+
+/** Action « Répondre » : l'intention à envoyer et les champs de saisie qu'elle attend. */
+data class ReplyAction(val label: String, val intent: PendingIntent, val remoteInputs: List<RemoteInput>)
+
+/** Une notification, avec ce qu'il faut pour l'ouvrir, y répondre ou l'effacer. */
+data class NotificationItem(
+    /** Clé de la StatusBarNotification (pour l'effacer). */
+    val key: String,
+    /** Titre : nom de la conversation ou de l'expéditeur. */
+    val title: String?,
+    val text: String?,
+    val postTime: Long,
+    /** Derniers messages (3 au plus, du plus ancien au plus récent) ; vide si ce n'est pas une conversation. */
+    val messages: List<ChatMessage>,
+    val contentIntent: PendingIntent?,
+    val reply: ReplyAction?,
+    /** Autres actions (2 au plus). */
+    val actions: List<NotificationAction>,
+    val autoCancel: Boolean,
+)
 
 /** Partage l'état des notifications entre le service et l'écran d'accueil. */
 object NotificationStore {
@@ -42,12 +76,75 @@ object NotificationStore {
     fun refreshNow() {
         NotificationService.instance?.refresh()
     }
+
+    // --- Réponses aux notifications ---
+
+    /** Efface une notification (comme un glissement dans le volet). Faux si le service n'est pas connecté. */
+    fun dismiss(key: String): Boolean {
+        val service = NotificationService.instance ?: return false
+        return try {
+            service.cancelNotification(key)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Ouvre la conversation (contentIntent). Faux si la notification n'en a pas ou si l'app l'a annulé :
+     * l'appelant ouvre alors l'app elle-même.
+     */
+    fun open(context: Context, item: NotificationItem): Boolean {
+        val intent = item.contentIntent ?: return false
+        val ok = sendPending(context, intent, null)
+        // Une notification « auto-cancel » disparaît quand on la touche dans le volet : pareil ici.
+        if (ok && item.autoCancel) dismiss(item.key)
+        return ok
+    }
+
+    /** Lance une action simple de la notification. */
+    fun runAction(context: Context, action: NotificationAction): Boolean = sendPending(context, action.intent, null)
+
+    /**
+     * Envoie une réponse : le texte est placé dans les champs RemoteInput de l'action « Répondre »,
+     * comme le fait le volet de notifications d'Android. Faux si l'app a annulé l'action entre-temps.
+     */
+    fun sendReply(context: Context, item: NotificationItem, text: String): Boolean {
+        val reply = item.reply ?: return false
+        val results = Bundle()
+        reply.remoteInputs.forEach { input ->
+            if (input.allowFreeFormInput) results.putCharSequence(input.resultKey, text)
+        }
+        val fillIn = Intent().addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+        RemoteInput.addResultsToIntent(reply.remoteInputs.toTypedArray(), fillIn, results)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            RemoteInput.setResultsSource(fillIn, RemoteInput.SOURCE_FREE_FORM_INPUT)
+        }
+        return sendPending(context, reply.intent, fillIn)
+    }
+
+    private fun sendPending(context: Context, pending: PendingIntent, fillIn: Intent?): Boolean = try {
+        // Android 14+ : Aura est au premier plan et prête ce droit pour que l'app puisse s'ouvrir.
+        val options = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            ActivityOptions.makeBasic()
+                .setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+                .toBundle()
+        } else {
+            null
+        }
+        pending.send(context, 0, fillIn, null, null, null, options)
+        true
+    } catch (e: PendingIntent.CanceledException) {
+        false
+    } catch (e: Exception) {
+        false
+    }
 }
 
 /**
  * Service que l'utilisateur active dans les réglages d'Android ("Accès aux notifications").
- * Il ne fait que lire les notifications pour afficher un point et un aperçu sur l'accueil.
- * Rien ne quitte le téléphone.
+ * Il lit les notifications pour afficher un point et un aperçu sur l'accueil, et permet d'y répondre
+ * ou de les effacer depuis la carte de l'app. Rien ne quitte le téléphone.
  */
 class NotificationService : NotificationListenerService() {
 
@@ -99,8 +196,56 @@ class NotificationService : NotificationListenerService() {
                     text = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
                         ?: extras.getCharSequence(Notification.EXTRA_TEXT))?.toString(),
                     postTime = latest.postTime,
+                    items = list.sortedByDescending { it.postTime }.map(::toItem),
                 )
             }
+    }
+
+    // --- Réponses aux notifications ---
+
+    /** Extrait d'une notification ce qu'il faut pour l'afficher et agir dessus. */
+    private fun toItem(sbn: StatusBarNotification): NotificationItem {
+        val n = sbn.notification
+        val extras = n.extras
+        val style = try {
+            NotificationCompat.MessagingStyle.extractMessagingStyleFromNotification(n)
+        } catch (e: Exception) {
+            null
+        }
+        val messages = style?.messages.orEmpty()
+            .mapNotNull { m ->
+                val text = m.text?.toString()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                // Expéditeur absent : message envoyé par l'utilisateur.
+                val sender = m.person?.name?.toString()?.takeIf { it.isNotBlank() }
+                ChatMessage(sender, text, m.timestamp)
+            }
+            .takeLast(3)
+        val title = style?.conversationTitle?.toString()
+            ?: extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString()
+            ?: extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
+        val text = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT)
+            ?: extras.getCharSequence(Notification.EXTRA_TEXT))?.toString()
+
+        val allActions = n.actions.orEmpty().filter { it.actionIntent != null && it.title != null }
+        val replyAction = allActions.firstOrNull { action ->
+            action.remoteInputs.orEmpty().any { it.allowFreeFormInput }
+        }
+        val others = allActions
+            .filter { it !== replyAction && it.remoteInputs.isNullOrEmpty() }
+            .take(2)
+            .map { NotificationAction(it.title.toString(), it.actionIntent) }
+
+        return NotificationItem(
+            key = sbn.key,
+            title = title,
+            text = text,
+            postTime = sbn.postTime,
+            messages = messages,
+            contentIntent = n.contentIntent,
+            reply = replyAction?.let { ReplyAction(it.title.toString(), it.actionIntent, it.remoteInputs.toList()) },
+            actions = others,
+            autoCancel = (n.flags and Notification.FLAG_AUTO_CANCEL) != 0,
+        )
     }
 
     private fun mediaToken(extras: Bundle?): MediaSession.Token? {

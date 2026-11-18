@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -311,6 +312,8 @@ private fun ShortcutsCard(
         Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
+            // Le champ de réponse remonte la carte au-dessus du clavier.
+            .imePadding()
             .padding(AuraSpace.s)
             .clip(shape)
             .background(AuraColors.Surface)
@@ -402,11 +405,21 @@ private fun AppCardContent(
     val app = panel.app
     val sizing = widgetId?.let { rememberWidgetSizing(app, it, state, actions) }
     Column(Modifier.fillMaxWidth()) {
-        // 1. Notifications de l'app : toucher l'aperçu ouvre l'app.
+        // 1. Notifications de l'app : toucher ouvre la conversation ; répondre, effacer, autres actions.
         if (notif != null) {
-            NotificationBlock(notif, state.textScale) {
-                actions.launch(app)
-                onClose()
+            NotificationList(
+                app = app,
+                info = notif,
+                actions = actions,
+                canReply = state.replyFromHome,
+                textScale = state.textScale,
+                onClose = onClose,
+            )
+            if (widgetId != null || panel.shortcuts.isNotEmpty()) {
+                HorizontalDivider(
+                    color = AuraColors.Hairline,
+                    modifier = Modifier.padding(horizontal = AuraSpace.xl, vertical = AuraSpace.xs),
+                )
             }
         }
 
@@ -490,49 +503,6 @@ private fun TextAction(label: String, color: Color, onClick: () -> Unit) {
     ) {
         Text(text = label, color = color, style = AuraType.label)
     }
-}
-
-/** Aperçu des notifications de l'app : un point, le nombre, puis le titre et le texte. */
-@Composable
-private fun NotificationBlock(notif: NotificationInfo, textScale: Float, onClick: () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = AuraSpace.xl, vertical = AuraSpace.s + AuraSpace.xxs),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            HaloDot(size = 10.dp)
-            Spacer(Modifier.width(AuraSpace.s))
-            Text(
-                text = if (notif.count > 1) "${notif.count} notifications" else "1 notification",
-                color = AuraColors.TextDim,
-                style = AuraType.caption,
-            )
-        }
-        Spacer(Modifier.height(AuraSpace.xs + AuraSpace.xxs))
-        val title = notif.title?.takeIf { it.isNotBlank() }
-        val text = notif.text?.takeIf { it.isNotBlank() }?.replace('\n', ' ')
-        if (title != null) {
-            Text(
-                text = title,
-                color = AuraColors.Text,
-                style = AuraType.row.scaled(textScale).copy(fontSize = AuraType.row.fontSize * 0.9f * textScale),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (text != null) {
-            Text(
-                text = text,
-                color = AuraColors.TextDim,
-                style = AuraType.bodySmall.scaled(textScale),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-    Spacer(Modifier.height(AuraSpace.s))
 }
 
 /** Pas des boutons « − / + » de la taille du widget (dp). */

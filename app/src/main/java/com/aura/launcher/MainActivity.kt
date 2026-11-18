@@ -79,6 +79,8 @@ class MainActivity : ComponentActivity(), LauncherActions {
         prefs.widgetIds = state.widgets
         // --- Design ---
         state.widgetHeights = prefs.widgetHeights.filterKeys { it in state.widgets }
+        // --- Réponses aux notifications ---
+        state.replyFromHome = prefs.replyFromHome
 
         refreshApps()
         stopObserving = repo.observeChanges { refreshApps() }
@@ -652,6 +654,13 @@ class MainActivity : ComponentActivity(), LauncherActions {
         if (updated == state.widgetHeights) return
         state.widgetHeights = updated
         prefs.widgetHeights = updated
+    }
+
+    // --- Réponses aux notifications ---
+
+    override fun setReplyFromHome(enabled: Boolean) {
+        state.replyFromHome = enabled
+        prefs.replyFromHome = enabled
     }
 
     private companion object {

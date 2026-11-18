@@ -63,6 +63,7 @@ fun SettingsScreen(state: LauncherState, actions: LauncherActions) {
                 state.showNotificationPreviews,
                 actions::setShowNotificationPreviews,
             )
+            com.aura.launcher.ui.settings.NotificationSettings(state, actions) // --- Réponses aux notifications ---
             Diagnostics(state)
             LinkRow("Relancer le service de notifications") { actions.restartNotificationService() }
             LinkRow("Ouvrir l'accès aux notifications d'Android") { actions.openNotificationAccessSettings() }

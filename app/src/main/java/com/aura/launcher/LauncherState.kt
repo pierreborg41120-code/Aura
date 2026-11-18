@@ -66,6 +66,10 @@ class LauncherState {
     var widgetHeights by mutableStateOf<Map<String, Int>>(emptyMap())
     /** Augmente à chaque retour sur le launcher : déclenche l'apparition douce de l'accueil. */
     var homeEntrance by mutableStateOf(0)
+
+    // --- Réponses aux notifications ---
+    /** Réglage « Répondre depuis l'accueil » : champ de réponse et effacement dans la carte de l'app. */
+    var replyFromHome by mutableStateOf(true)
 }
 
 /** Ce que l'interface peut demander à l'activité. */
@@ -130,4 +134,7 @@ interface LauncherActions {
     // --- Design ---
     /** Mémorise la hauteur (dp) du widget de l'app ; null revient à la hauteur calculée. */
     fun setWidgetHeight(app: AppEntry, heightDp: Int?)
+
+    // --- Réponses aux notifications ---
+    fun setReplyFromHome(enabled: Boolean)
 }
