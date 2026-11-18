@@ -103,7 +103,7 @@ Ne pas le changer, sinon l'utilisateur devra désinstaller Aura et perdra ses fa
 | Raccourcis d'app : glisser un favori à droite, menu d'appui long (v0.1.9) | ✅ premier retour positif (« pas mal ») |
 | Nouvelle icône « éclipse » + calque monochrome (v0.1.9) | ✅ premier retour positif (« pas mal ») |
 | Carte de l'app (glisser un favori : notifications + widget + raccourcis) | ✅ testé, widget Tesla OK (boutons fonctionnels) ; il était écrasé → hauteur revue + réglable, **à revérifier** |
-| Nouveau mini-lecteur (grande pochette, transitions, halo, progression) | ⏳ à tester |
+| Nouveau mini-lecteur (grande pochette, halo, progression) | ⏳ à tester ; 1re transition jugée « très moche » → refaite en révélation « éclipse » (masque rond ondulé, inspiré de la vidéo Niagara de l'utilisateur) |
 | Finitions de design « éclipse » (tokens dans Theme.kt, ombres de texte, A–Z en loupe) | ⏳ à tester |
 
 Si notifications ou lecteur ne marchent toujours pas : demander une capture du bloc **Diagnostic**
