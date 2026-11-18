@@ -115,6 +115,29 @@ Ne pas le changer, sinon l'utilisateur devra désinstaller Aura et perdra ses fa
 Si notifications ou lecteur ne marchent toujours pas : demander une capture du bloc **Diagnostic**
 (Réglages d'Aura → « Notifications et musique ») ; chaque ligne ✓/✗ correspond à une étape.
 
+## Prochain lot validé avec l'utilisateur (18/11/2026) : « Apparence » — à lancer
+
+Décisions prises via /interroge (ne pas les rediscuter) :
+- **Écran** : ligne « Apparence » dans les réglages → mode d'édition : le vrai accueil visible en haut (pas de
+  miniature : lire le fond d'écran exige une permission restreinte depuis Android 13), panneau à onglets en bas
+  (Horloge · Police · Couleur · Fond · Alignement), changements visibles en direct, « Terminé » enregistre,
+  Retour propose d'annuler.
+- **Accent** : « Auto » par défaut (WallpaperColors, couleur retouchée pour rester lisible) + palette de 7 couleurs.
+  Pas de roue chromatique.
+- **Horloge** : Fine (actuelle, défaut), Empilée (heures au-dessus des minutes), En toutes lettres
+  (« Vingt et une heures quarante-neuf »), Compacte (heure · date sur une ligne). 12/24 h suit le système.
+- **Police** : Système (défaut), Manrope, Instrument Serif, Space Mono — fichiers OFL embarqués dans res/font
+  (pas de bibliothèque). Accueil + tiroir uniquement, pas les réglages.
+- **Fond** : voile en 4 niveaux (Aucun, Léger = actuel par défaut, Moyen, Fort ~45 %) + flou du fond à l'ouverture
+  du tiroir (Android 12+), interrupteur désactivé par défaut.
+- **Alignement** : gauche (défaut) / centré / droite pour horloge, date, ligne de statut et favoris. Droite : icônes
+  à droite du nom. Centré : icônes masquées sur l'accueil. Lecteur, tiroir et widget inchangés.
+- Aucune permission ni dépendance en plus.
+
+Exécution prévue : l'orchestrateur pose d'abord le socle (modèle des réglages d'apparence + Prefs + lecture dans
+Theme.kt), puis 3 agents en parallèle (thème : accent/polices/voile/flou/alignement ; horloges ; éditeur), fusion,
+CI, une seule Release.
+
 ## Pistes pour la suite (proposées, pas encore faites)
 
 - Dossiers pop-up, styles d'horloge / polices / couleur d'accent, récap des notifications, limiteur d'utilisation
