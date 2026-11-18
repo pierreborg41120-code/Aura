@@ -77,6 +77,8 @@ class MainActivity : ComponentActivity(), LauncherActions {
         widgets = WidgetRepository(this)
         state.widgets = widgets.cleanUp(prefs.widgetIds)
         prefs.widgetIds = state.widgets
+        // --- Design ---
+        state.widgetHeights = prefs.widgetHeights.filterKeys { it in state.widgets }
 
         refreshApps()
         stopObserving = repo.observeChanges { refreshApps() }
@@ -618,6 +620,8 @@ class MainActivity : ComponentActivity(), LauncherActions {
         if (old != null && old != pending.id) widgets.deleteId(old)
         state.widgets = state.widgets + (pending.app.key to pending.id)
         prefs.widgetIds = state.widgets
+        // Nouveau widget : il repart de sa hauteur calculée.
+        setWidgetHeight(pending.app, null)
         if (state.shortcutPanel?.app?.key != pending.app.key) {
             lifecycleScope.launch {
                 val shortcuts = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -633,6 +637,16 @@ class MainActivity : ComponentActivity(), LauncherActions {
         widgets.deleteId(id)
         state.widgets = state.widgets - app.key
         prefs.widgetIds = state.widgets
+        setWidgetHeight(app, null)
+    }
+
+    // --- Design ---
+
+    override fun setWidgetHeight(app: AppEntry, heightDp: Int?) {
+        val updated = if (heightDp == null) state.widgetHeights - app.key else state.widgetHeights + (app.key to heightDp)
+        if (updated == state.widgetHeights) return
+        state.widgetHeights = updated
+        prefs.widgetHeights = updated
     }
 
     private companion object {

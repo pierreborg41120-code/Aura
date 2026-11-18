@@ -13,6 +13,8 @@ import android.view.View
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
+import kotlin.math.ceil
+import kotlin.math.roundToInt
 
 /** Un widget proposé par une app (ex. « Tesla — commandes »). */
 data class WidgetProvider(
@@ -111,7 +113,11 @@ class WidgetRepository(private val context: Context) {
     fun createView(viewContext: Context, id: Int): View? {
         val info = info(id) ?: return null
         return try {
-            host.createView(viewContext, id, info)
+            host.createView(viewContext, id, info).apply {
+                // Android ajoute une marge intérieure par défaut aux anciens widgets (~8 dp de chaque
+                // côté) : dans la carte, elle rognait leur contenu. C'est la carte qui encadre le widget.
+                setPadding(0, 0, 0, 0)
+            }
         } catch (e: Exception) {
             null
         }
@@ -142,33 +148,62 @@ class WidgetRepository(private val context: Context) {
             )
         }
 
+        /** Hauteur d'une case d'écran d'accueil sur un launcher moderne (dp). */
+        private const val CELL_HEIGHT_DP = 110
+
+        /** Bornes de secours quand le widget ne déclare pas ses limites de redimensionnement (dp). */
+        const val FALLBACK_MIN_DP = 80
+        const val FALLBACK_MAX_DP = 480
+
         /**
-         * Hauteur conseillée (en dp) pour afficher le widget sur toute la largeur de la carte :
-         * d'après minHeight et, à partir d'Android 12, le nombre de cases visé. Bornée à 100–300 dp.
+         * Hauteurs permises (dp) pour le réglage par widget : de minResizeHeight à maxResizeHeight
+         * (Android 12+) quand le widget les déclare, sinon 80–480 dp.
+         * Attention : AppWidgetProviderInfo donne ces valeurs en pixels, d'où la division par [density].
          */
-        fun preferredHeightDp(info: AppWidgetProviderInfo?, density: Float): Int {
-            if (info == null) return 120
-            val minDp = (info.minHeight / density).toInt()
-            val cellsDp = if (Build.VERSION.SDK_INT >= 31 && info.targetCellHeight > 0) {
-                info.targetCellHeight * 90 - 10
-            } else {
-                0
-            }
-            return maxOf(minDp, cellsDp, 100).coerceIn(100, 300)
+        fun heightRangeDp(info: AppWidgetProviderInfo?, density: Float): IntRange {
+            if (info == null) return FALLBACK_MIN_DP..FALLBACK_MAX_DP
+            val minPx = info.minResizeHeight.takeIf { it > 0 }
+            val low = minPx?.let { (it / density).roundToInt() }?.coerceIn(40, FALLBACK_MAX_DP) ?: FALLBACK_MIN_DP
+            val maxPx = if (Build.VERSION.SDK_INT >= 31) info.maxResizeHeight else 0
+            val high = if (maxPx > 0) (maxPx / density).roundToInt().coerceIn(low, 720) else FALLBACK_MAX_DP
+            return low..maxOf(low, high)
         }
 
-        /** Indique au widget la taille réelle dont il dispose (il peut adapter sa mise en page). */
+        /**
+         * Hauteur par défaut (dp) du widget sur toute la largeur de la carte : le nombre de cases visé
+         * (Android 12+, sinon déduit de minHeight avec la formule d'Android « 70 × n − 30 ») multiplié
+         * par une case de [CELL_HEIGHT_DP] dp, jamais moins que minHeight, et dans [heightRangeDp].
+         */
+        fun preferredHeightDp(info: AppWidgetProviderInfo?, density: Float): Int {
+            if (info == null) return 2 * CELL_HEIGHT_DP
+            val minDp = info.minHeight / density
+            val cells = if (Build.VERSION.SDK_INT >= 31 && info.targetCellHeight > 0) {
+                info.targetCellHeight
+            } else {
+                ceil((minDp + 30f) / 70f).toInt().coerceAtLeast(1)
+            }
+            val wanted = maxOf(minDp.roundToInt(), cells * CELL_HEIGHT_DP)
+            val range = heightRangeDp(info, density)
+            return wanted.coerceIn(range.first, range.last)
+        }
+
+        /**
+         * Indique au widget la taille réelle dont il dispose, **en dp** (c'est ce qu'attendent
+         * updateAppWidgetSize et les options OPTION_APPWIDGET_MIN/MAX_WIDTH/HEIGHT), pour qu'il
+         * choisisse sa mise en page. Min = max : la carte a une taille exacte.
+         */
         @Suppress("DEPRECATION")
         fun applySize(view: View, widthDp: Int, heightDp: Int) {
             val hostView = view as? AppWidgetHostView ?: return
             try {
                 if (Build.VERSION.SDK_INT >= 31) {
+                    // Remplit aussi OPTION_APPWIDGET_SIZES et les MIN/MAX d'après cette taille.
                     hostView.updateAppWidgetSize(
                         bindOptions(),
                         listOf(SizeF(widthDp.toFloat(), heightDp.toFloat())),
                     )
                 } else {
-                    hostView.updateAppWidgetSize(null, widthDp, heightDp, widthDp, heightDp)
+                    hostView.updateAppWidgetSize(bindOptions(), widthDp, heightDp, widthDp, heightDp)
                 }
             } catch (e: Exception) {
             }

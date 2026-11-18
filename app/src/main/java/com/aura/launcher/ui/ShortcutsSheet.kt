@@ -90,6 +90,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.exp
+import kotlin.math.roundToInt
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
 
 /** Nombre maximal de raccourcis affichés en tête du menu d'appui long. */
 private const val MENU_MAX = 4
@@ -400,6 +403,7 @@ private fun AppCardContent(
     onPickWidget: () -> Unit,
 ) {
     val app = panel.app
+    val sizing = widgetId?.let { rememberWidgetSizing(app, it, state, actions) }
     Column(Modifier.fillMaxWidth()) {
         // 1. Notifications de l'app : toucher l'aperçu ouvre l'app.
         if (notif != null) {
@@ -411,8 +415,10 @@ private fun AppCardContent(
 
         // 2. Widget attaché (s'il existe encore).
         if (widgetId != null) {
-            key(widgetId) { AppWidget(widgetId, actions) }
-            Spacer(Modifier.height(8.dp))
+            if (sizing != null) {
+                key(widgetId) { AppWidget(app, widgetId, sizing, actions) }
+            }
+            Spacer(Modifier.height(4.dp))
         }
 
         // 3. Raccourcis.
@@ -457,10 +463,18 @@ private fun AppCardContent(
                     TextAction("Ajouter un widget", AuraColors.TextDim, onPickWidget)
                 } else {
                     if (providers.isNotEmpty()) {
-                        TextAction("Changer le widget", AuraColors.TextDim, onPickWidget)
+                        TextAction("Changer", AuraColors.TextDim, onPickWidget)
                     }
                     Spacer(Modifier.weight(1f))
-                    TextAction("Retirer le widget", AuraColors.TextDim) { actions.removeWidget(app) }
+                    if (sizing != null) {
+                        SizeButton(plus = false, enabled = sizing.height > sizing.range.first) {
+                            actions.setWidgetHeight(app, sizing.stepped(-WIDGET_STEP_DP))
+                        }
+                        SizeButton(plus = true, enabled = sizing.height < sizing.range.last) {
+                            actions.setWidgetHeight(app, sizing.stepped(+WIDGET_STEP_DP))
+                        }
+                    }
+                    TextAction("Retirer", AuraColors.TextDim) { actions.removeWidget(app) }
                 }
             }
         }
@@ -532,16 +546,51 @@ private fun NotificationBlock(notif: NotificationInfo, textScale: Float, onClick
     Spacer(Modifier.height(8.dp))
 }
 
+/** Pas des boutons « − / + » de la taille du widget (dp). */
+private const val WIDGET_STEP_DP = 20
+
+/** Hauteur du widget de l'app : bornes permises et hauteur actuelle (choisie ou calculée), en dp. */
+private class WidgetSizing(val range: IntRange, val height: Int) {
+    fun stepped(delta: Int): Int = (height + delta).coerceIn(range.first, range.last)
+}
+
+@Composable
+private fun rememberWidgetSizing(
+    app: AppEntry,
+    appWidgetId: Int,
+    state: LauncherState,
+    actions: LauncherActions,
+): WidgetSizing? {
+    val density = LocalDensity.current.density
+    val info = remember(appWidgetId) { actions.widgetInfo(appWidgetId) } ?: return null
+    val range = WidgetRepository.heightRangeDp(info, density)
+    val height = (state.widgetHeights[app.key] ?: WidgetRepository.preferredHeightDp(info, density))
+        .coerceIn(range.first, range.last)
+    return WidgetSizing(range, height)
+}
+
 /**
  * Widget de l'app, sur toute la largeur de la carte. La vue Android est créée par l'hôte de widgets
  * d'Aura ; ses boutons fonctionnent normalement (rien ne capte leurs touchers au-dessus).
+ *
+ * Sous le widget, une poignée se glisse verticalement pour changer sa hauteur : la carte suit le
+ * doigt, puis la hauteur est mémorisée et transmise au widget au relâchement (pour qu'il se remette
+ * en page une seule fois, pas à chaque image).
  */
 @Composable
-private fun AppWidget(appWidgetId: Int, actions: LauncherActions) {
+private fun AppWidget(
+    app: AppEntry,
+    appWidgetId: Int,
+    sizing: WidgetSizing,
+    actions: LauncherActions,
+) {
     val density = LocalDensity.current.density
-    val info = remember(appWidgetId) { actions.widgetInfo(appWidgetId) } ?: return
-    val heightDp = remember(info) { WidgetRepository.preferredHeightDp(info, density) }
+    val view = LocalView.current
     val widgetShape = RoundedCornerShape(16.dp)
+    val current by rememberUpdatedState(sizing)
+    // Hauteur pendant le glissement de la poignée (null = pas de glissement en cours).
+    var dragHeight by remember(appWidgetId) { mutableStateOf<Float?>(null) }
+    val shownHeight = dragHeight?.roundToInt() ?: sizing.height
 
     BoxWithConstraints(
         Modifier
@@ -550,23 +599,102 @@ private fun AppWidget(appWidgetId: Int, actions: LauncherActions) {
             .clip(widgetShape)
             .background(AuraColors.Text.copy(alpha = 0.04f)),
     ) {
+        // maxWidth est déjà la largeur intérieure de la carte (marges déduites), en dp.
         val widthDp = maxWidth.value.toInt()
+        val committedHeight = sizing.height
         AndroidView(
             factory = { context ->
                 actions.createWidgetView(context, appWidgetId) ?: FrameLayout(context)
             },
-            update = { view ->
-                // On ne prévient le widget que si la taille a changé (évite des appels système inutiles).
-                val size = widthDp to heightDp
-                if (view.tag != size) {
-                    view.tag = size
-                    WidgetRepository.applySize(view, widthDp, heightDp)
+            update = { widgetView ->
+                // On ne prévient le widget que si la taille mémorisée a changé (évite des appels inutiles).
+                val size = widthDp to committedHeight
+                if (widgetView.tag != size) {
+                    widgetView.tag = size
+                    WidgetRepository.applySize(widgetView, widthDp, committedHeight)
                 }
             },
             modifier = Modifier
                 .fillMaxWidth()
-                .height(heightDp.dp),
+                .height(shownHeight.dp),
         )
+    }
+
+    // Poignée de redimensionnement : un trait discret, zone de toucher de 28 dp de haut.
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(28.dp)
+            .semantics {
+                customActions = listOf(
+                    CustomAccessibilityAction("Agrandir le widget") {
+                        actions.setWidgetHeight(app, current.stepped(+WIDGET_STEP_DP))
+                        true
+                    },
+                    CustomAccessibilityAction("Réduire le widget") {
+                        actions.setWidgetHeight(app, current.stepped(-WIDGET_STEP_DP))
+                        true
+                    },
+                )
+            }
+            .pointerInput(appWidgetId) {
+                detectVerticalDragGestures(
+                    onDragStart = { dragHeight = current.height.toFloat() },
+                    onDragEnd = {
+                        dragHeight?.let { actions.setWidgetHeight(app, it.roundToInt()) }
+                        dragHeight = null
+                    },
+                    onDragCancel = { dragHeight = null },
+                    onVerticalDrag = { change, amount ->
+                        change.consume()
+                        val range = current.range
+                        val before = dragHeight ?: current.height.toFloat()
+                        val next = (before + amount / density).coerceIn(range.first.toFloat(), range.last.toFloat())
+                        // Petit retour haptique en butée.
+                        if (next != before && (next == range.first.toFloat() || next == range.last.toFloat())) {
+                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        }
+                        dragHeight = next
+                    },
+                )
+            },
+    ) {
+        Box(
+            Modifier
+                .size(width = if (dragHeight != null) 48.dp else 28.dp, height = 3.dp)
+                .background(
+                    if (dragHeight != null) AuraColors.Accent else AuraColors.TextFaint.copy(alpha = 0.5f),
+                    CircleShape,
+                ),
+        )
+    }
+}
+
+/** Bouton « − » ou « + » de la taille du widget, dessiné en Canvas (zone de toucher de 48 dp). */
+@Composable
+private fun SizeButton(plus: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    val color = if (enabled) AuraColors.TextDim else AuraColors.TextFaint.copy(alpha = 0.4f)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .clickable(
+                enabled = enabled,
+                role = Role.Button,
+                onClickLabel = if (plus) "Agrandir le widget" else "Réduire le widget",
+                onClick = onClick,
+            ),
+    ) {
+        Canvas(Modifier.size(14.dp)) {
+            val stroke = 1.6.dp.toPx()
+            val mid = size.height / 2f
+            drawLine(color, Offset(0f, mid), Offset(size.width, mid), stroke, StrokeCap.Round)
+            if (plus) {
+                drawLine(color, Offset(size.width / 2f, 0f), Offset(size.width / 2f, size.height), stroke, StrokeCap.Round)
+            }
+        }
     }
 }
 

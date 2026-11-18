@@ -70,8 +70,26 @@ class Prefs(context: Context) {
             editor.apply()
         }
 
+    /**
+     * Hauteur choisie (en dp) pour le widget de chaque app : clé de l'app → hauteur.
+     * Absente = hauteur calculée d'après le widget.
+     */
+    var widgetHeights: Map<String, Int>
+        get() = sp.all
+            .filterKeys { it.startsWith(WIDGET_HEIGHT_PREFIX) }
+            .mapNotNull { (k, v) -> (v as? Int)?.let { k.removePrefix(WIDGET_HEIGHT_PREFIX) to it } }
+            .toMap()
+        set(value) {
+            val editor = sp.edit()
+            sp.all.keys.filter { it.startsWith(WIDGET_HEIGHT_PREFIX) }.forEach(editor::remove)
+            value.forEach { (k, v) -> editor.putInt(WIDGET_HEIGHT_PREFIX + k, v) }
+            editor.apply()
+        }
+
     private companion object {
         const val WIDGET_PREFIX = "widget:"
+        // « widget_h: » ne commence pas par « widget: » : les deux familles de clés ne se mélangent pas.
+        const val WIDGET_HEIGHT_PREFIX = "widget_h:"
         const val KEY_FAVORITES = "favorites"
         const val KEY_HIDDEN = "hidden"
         const val KEY_ICONS = "show_icons"

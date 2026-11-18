@@ -60,6 +60,10 @@ class LauncherState {
     var hasCalendarAccess by mutableStateOf(false)
     var battery by mutableStateOf<BatteryInfo?>(null)
     var nextEvent by mutableStateOf<NextEvent?>(null)
+
+    // --- Design ---
+    /** Hauteur choisie (dp) pour le widget de chaque app ; absente = hauteur calculée. */
+    var widgetHeights by mutableStateOf<Map<String, Int>>(emptyMap())
 }
 
 /** Ce que l'interface peut demander à l'activité. */
@@ -117,4 +121,8 @@ interface LauncherActions {
     /** Vue Android du widget, créée par l'hôte de widgets d'Aura (null si le widget a disparu). */
     fun createWidgetView(context: Context, appWidgetId: Int): View?
     fun widgetInfo(appWidgetId: Int): AppWidgetProviderInfo?
+
+    // --- Design ---
+    /** Mémorise la hauteur (dp) du widget de l'app ; null revient à la hauteur calculée. */
+    fun setWidgetHeight(app: AppEntry, heightDp: Int?)
 }
