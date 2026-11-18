@@ -10,13 +10,16 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -55,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -64,6 +68,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
@@ -85,31 +91,40 @@ import com.aura.launcher.LauncherActions
 import com.aura.launcher.MediaInfo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.hypot
+import kotlin.math.max
+import kotlin.math.sin
 
 // --- Lecteur ---
 // Mini-lecteur d'Aura : une carte sombre translucide, teintée par la pochette, avec un halo
-// coloré qui déborde doucement sur le fond d'écran. Le changement de morceau se veut discret :
-// la nouvelle pochette se pose en fondu par-dessus l'ancienne, le texte s'enchaîne en fondu,
-// rien ne glisse ni ne rebondit. Tout est dessiné à la main : aucune bibliothèque d'icônes.
+// coloré qui déborde doucement sur le fond d'écran. Au changement de morceau, la nouvelle
+// pochette se révèle par-dessus l'ancienne à travers une « éclipse » liquide : un disque au bord
+// légèrement ondulé qui grandit depuis le côté du saut. Le texte s'enchaîne en fondu avec un
+// petit glissement, rien ne rebondit. Tout est dessiné à la main : aucune bibliothèque d'icônes.
 
 /** Fond de la carte : assez sombre pour que le texte clair reste lisible sur un fond d'écran clair. */
 private val CardBase = Color(0xFF0E0E14)
 
 // Courbes « emphasized » : décélération franche à l'arrivée ; « standard » pour les fondus.
 private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
+private val EmphasizedAccelerate = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
 private val Standard = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 
 // Durées de la transition de morceau (sortie plus courte que l'entrée, arrivée en décélération).
-/** Fondu de la nouvelle pochette par-dessus l'ancienne. */
-private const val ArtFadeMs = 380
-/** Teinte de la carte et du halo, lancée en même temps que le fondu de la pochette. */
+/** Révélation de la nouvelle pochette par-dessus l'ancienne. */
+private const val ArtRevealMs = 450
+/** Teinte de la carte et du halo, lancée en même temps que la révélation de la pochette. */
 private const val AccentMs = 600
 /** Sortie de l'ancien titre. */
 private const val TextOutMs = 120
 /** Entrée du nouveau titre, et son décalage par rapport au début de la sortie. */
 private const val TextInMs = 240
 private const val TextInDelayMs = 60
+/** Disque clair qui s'efface derrière les boutons précédent/suivant. */
+private const val PressGlowMs = 300
 /** Retour de la ligne à sa place après un glisser. */
 private const val DragReturnMs = 200
 
@@ -124,6 +139,8 @@ private data class TrackText(
     val trackId: String,
     val title: String,
     val artist: String?,
+    /** Sens du saut (1 = suivant, -1 = précédent, 0 = externe) : sens du glissement du texte. */
+    val direction: Int,
 )
 
 /** Mini-lecteur affiché sur l'accueil quand de la musique est en cours. */
@@ -140,18 +157,22 @@ fun MediaCard(media: MediaInfo, actions: LauncherActions, textScale: Float) {
     // animation, flash). La transition est donc pilotée par l'image elle-même, pas par le titre.
     var heldArt by remember { mutableStateOf(media.art) }
     var heldColor by remember { mutableStateOf(media.artColor) }
+    // Sens du saut qui a amené l'image tenue : la révélation part de ce côté.
+    var heldDirection by remember { mutableStateOf(media.direction) }
     LaunchedEffect(media.art, media.artColor) {
         if (media.art != null) {
+            heldDirection = media.direction
             heldArt = media.art
             heldColor = media.artColor
         } else if (heldArt != null) {
             delay(ArtHoldMs)
+            heldDirection = media.direction
             heldArt = null
             heldColor = null
         }
     }
 
-    // Le halo change de teinte quand l'image change, donc en même temps que son fondu.
+    // Le halo change de teinte quand l'image change, donc en même temps que sa révélation.
     val targetAccent = heldColor?.let { tame(Color(it)) } ?: AuraColors.Accent
     val accent by animateColorAsState(
         targetValue = targetAccent,
@@ -196,6 +217,7 @@ fun MediaCard(media: MediaInfo, actions: LauncherActions, textScale: Float) {
             TrackInfo(
                 media = media,
                 art = heldArt,
+                artDirection = heldDirection,
                 accent = accent,
                 textScale = textScale,
                 reduceMotion = reduceMotion,
@@ -224,18 +246,19 @@ private val DragThreshold = 56.dp
 private fun TrackInfo(
     media: MediaInfo,
     art: ImageBitmap?,
+    artDirection: Int,
     accent: Color,
     textScale: Float,
     reduceMotion: Boolean,
     actions: LauncherActions,
 ) {
-    val text = TrackText(media.trackId, media.title, media.artist)
+    val text = TrackText(media.trackId, media.title, media.artist, media.direction)
     val view = LocalView.current
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val maxPx = with(density) { DragMax.toPx() }
     val threshold = with(density) { DragThreshold.toPx() }
-    val textShift = with(density) { 4.dp.roundToPx() }
+    val textShift = with(density) { 8.dp.roundToPx() }
     val currentActions by rememberUpdatedState(actions)
     // Décalage visuel (amorti) de la ligne pendant le geste ; [raw] = distance réelle du doigt.
     val drag = remember { Animatable(0f) }
@@ -290,7 +313,7 @@ private fun TrackInfo(
             }
             .graphicsLayer { translationX = drag.value },
     ) {
-        Artwork(art, accent, reduceMotion, openApp)
+        Artwork(art, artDirection, accent, reduceMotion, openApp)
         Spacer(Modifier.width(16.dp))
         Column(
             verticalArrangement = Arrangement.SpaceBetween,
@@ -301,7 +324,7 @@ private fun TrackInfo(
             AnimatedContent(
                 targetState = text,
                 contentKey = { it.trackId },
-                transitionSpec = { textTransform(reduceMotion, textShift) },
+                transitionSpec = { textTransform(targetState.direction, reduceMotion, textShift) },
                 contentAlignment = Alignment.TopStart,
                 label = "titre",
                 modifier = Modifier
@@ -340,37 +363,50 @@ private fun TrackInfo(
 }
 
 /**
- * Titre et artiste : fondu enchaîné. L'ancien texte s'efface vite, le nouveau apparaît un
- * instant plus tard en remontant de quelques pixels. Pas d'animation de taille : la colonne
- * prend directement la hauteur du nouveau texte.
+ * Titre et artiste : fondu enchaîné. L'ancien texte s'efface vite en glissant de 8 dp vers
+ * l'arrière, le nouveau apparaît un instant plus tard en arrivant de 8 dp depuis le sens du saut
+ * (suivant → de la droite). Changement externe : simple fondu avec 4 dp de remontée.
+ * Pas d'animation de taille : la colonne prend directement la hauteur du nouveau texte.
  */
-private fun textTransform(reduceMotion: Boolean, shiftPx: Int): ContentTransform {
+private fun textTransform(direction: Int, reduceMotion: Boolean, shiftPx: Int): ContentTransform {
     if (reduceMotion) return ContentTransform(EnterTransition.None, ExitTransition.None, sizeTransform = null)
-    val enter = fadeIn(tween(TextInMs, TextInDelayMs, Standard)) +
-        slideInVertically(tween(TextInMs, TextInDelayMs, EmphasizedDecelerate)) { shiftPx }
-    val exit = fadeOut(tween(TextOutMs, easing = LinearEasing))
+    val fadeInSpec = fadeIn(tween(TextInMs, TextInDelayMs, Standard))
+    val exitFade = fadeOut(tween(TextOutMs, easing = LinearEasing))
+    if (direction == 0) {
+        val enter = fadeInSpec + slideInVertically(tween(TextInMs, TextInDelayMs, EmphasizedDecelerate)) { shiftPx / 2 }
+        return ContentTransform(enter, exitFade, sizeTransform = null)
+    }
+    val enter = fadeInSpec +
+        slideInHorizontally(tween(TextInMs, TextInDelayMs, EmphasizedDecelerate)) { direction * shiftPx }
+    val exit = exitFade +
+        slideOutHorizontally(tween(TextOutMs, easing = EmphasizedAccelerate)) { -direction * shiftPx }
     return ContentTransform(enter, exit, sizeTransform = null)
 }
 
 /**
- * Pochette carrée aux coins doux, dans un cadre fixe. Quand l'image change, la nouvelle se pose
- * en fondu par-dessus l'ancienne (qui reste immobile dessous) avec un très léger retour d'échelle
- * 1,04 → 1. Une note dessinée remplace l'image si l'app n'en fournit pas.
+ * Pochette carrée aux coins doux, dans un cadre fixe. Quand l'image change, la nouvelle se
+ * révèle par-dessus l'ancienne (immobile dessous) à travers un disque au bord ondulé qui grandit
+ * depuis le côté du saut : suivant → depuis la droite, précédent → depuis la gauche, changement
+ * externe → depuis le centre. Une note dessinée remplace l'image si l'app n'en fournit pas.
  */
 @Composable
-private fun Artwork(art: ImageBitmap?, accent: Color, reduceMotion: Boolean, modifier: Modifier) {
+private fun Artwork(art: ImageBitmap?, direction: Int, accent: Color, reduceMotion: Boolean, modifier: Modifier) {
     val placeholder = lerp(CardBase, accent, 0.45f)
-    // Image du dessous (immobile) et image qui arrive par-dessus pendant le fondu.
+    val currentDirection by rememberUpdatedState(direction)
+    // Image du dessous (immobile) et image qui se révèle par-dessus.
     var base by remember { mutableStateOf(art) }
     var incoming by remember { mutableStateOf<ImageBitmap?>(null) }
-    var fading by remember { mutableStateOf(false) }
+    var revealing by remember { mutableStateOf(false) }
+    var revealFrom by remember { mutableStateOf(0) }
     val progress = remember { Animatable(1f) }
+    val mask = remember { Path() }
+    val rim = with(LocalDensity.current) { 1.5.dp.toPx() }
 
     LaunchedEffect(art) {
-        // Fondu interrompu par une nouvelle image : celle qui arrivait devient le fond.
-        if (fading) {
+        // Révélation interrompue par une nouvelle image : celle qui arrivait devient le fond.
+        if (revealing) {
             base = incoming
-            fading = false
+            revealing = false
             incoming = null
         }
         if (art == base) return@LaunchedEffect
@@ -379,12 +415,13 @@ private fun Artwork(art: ImageBitmap?, accent: Color, reduceMotion: Boolean, mod
             return@LaunchedEffect
         }
         incoming = art
+        revealFrom = currentDirection
         progress.snapTo(0f)
-        fading = true
-        // Progression linéaire ; les courbes sont appliquées séparément au fondu et à l'échelle.
-        progress.animateTo(1f, tween(ArtFadeMs, easing = LinearEasing))
+        revealing = true
+        // Progression linéaire : la courbe est appliquée au rayon, les ondulations restent régulières.
+        progress.animateTo(1f, tween(ArtRevealMs, easing = LinearEasing))
         base = art
-        fading = false
+        revealing = false
         incoming = null
     }
 
@@ -393,25 +430,70 @@ private fun Artwork(art: ImageBitmap?, accent: Color, reduceMotion: Boolean, mod
             .size(ArtSize)
             // Légère ombre portée : la pochette se détache de la carte.
             .shadow(10.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black, spotColor = Color.Black)
-            // Découpe aux coins arrondis : l'échelle 1,04 de la nouvelle image ne déborde jamais.
+            // Découpe aux coins arrondis : le disque de révélation ne déborde jamais.
             .clip(RoundedCornerShape(16.dp))
             .background(placeholder),
     ) {
         ArtLayer(base, placeholder, Modifier)
-        if (fading) {
+        if (revealing) {
             ArtLayer(
                 incoming,
                 placeholder,
-                Modifier.graphicsLayer {
+                Modifier.drawWithContent {
                     val t = progress.value
-                    alpha = Standard.transform(t)
-                    val s = 1.04f - 0.04f * EmphasizedDecelerate.transform(t)
-                    scaleX = s
-                    scaleY = s
+                    val eased = FastOutSlowInEasing.transform(t)
+                    val w = size.width
+                    val h = size.height
+                    val origin = when {
+                        revealFrom > 0 -> Offset(w, h * 0.5f)
+                        revealFrom < 0 -> Offset(0f, h * 0.5f)
+                        else -> Offset(w * 0.5f, h * 0.5f)
+                    }
+                    // Rayon final : coin le plus éloigné × 1,2, pour que les creux du bord couvrent aussi.
+                    val far = max(
+                        max(hypot(origin.x, origin.y), hypot(w - origin.x, origin.y)),
+                        max(hypot(origin.x, h - origin.y), hypot(w - origin.x, h - origin.y)),
+                    )
+                    val radius = far * 1.2f * eased
+                    buildLiquidDisc(mask, origin, radius, t)
+                    clipPath(mask) { this@drawWithContent.drawContent() }
+                    // Liseré lumineux, couleur du halo, qui s'efface en fin de révélation.
+                    val glow = (1f - eased).coerceIn(0f, 1f)
+                    if (glow > 0.01f && radius > 0f) {
+                        drawPath(
+                            mask,
+                            lerp(accent, Color.White, 0.5f).copy(alpha = 0.6f * glow),
+                            style = Stroke(width = rim),
+                        )
+                    }
                 },
             )
         }
     }
+}
+
+/**
+ * Disque « liquide » : un cercle dont le rayon est perturbé par trois sinusoïdes de fréquences
+ * et de phases différentes ; les phases avancent avec [t], ce qui fait onduler le bord.
+ * L'amplitude reste faible (≈ 5 % du rayon) : on lit d'abord un cercle, puis un bord vivant.
+ */
+private fun buildLiquidDisc(path: Path, center: Offset, radius: Float, t: Float) {
+    path.reset()
+    if (radius <= 0f) return
+    val steps = 72
+    val amp = radius * 0.05f
+    val turn = (2 * PI).toFloat()
+    for (i in 0..steps) {
+        val a = i * turn / steps
+        val wobble = 0.55f * sin(3 * a + 0.7f + t * turn * 0.9f) +
+            0.30f * sin(5 * a + 2.1f - t * turn * 1.3f) +
+            0.15f * sin(8 * a + 4.0f + t * turn * 1.7f)
+        val r = radius + amp * wobble
+        val x = center.x + r * cos(a)
+        val y = center.y + r * sin(a)
+        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+    }
+    path.close()
 }
 
 /** Un calque de la pochette : l'image, ou la note sur fond opaque (pour bien couvrir l'ancienne). */
@@ -441,13 +523,13 @@ private fun Controls(isPlaying: Boolean, actions: LauncherActions, reduceMotion:
         label = "lecturePause",
     )
     Row(verticalAlignment = Alignment.CenterVertically) {
-        RoundButton("Morceau précédent", 44.dp, null, actions::mediaPrevious) {
+        RoundButton("Morceau précédent", 44.dp, null, actions::mediaPrevious, glow = !reduceMotion) {
             Canvas(Modifier.size(15.dp)) { drawPrevious(AuraColors.Text) }
         }
         RoundButton(if (isPlaying) "Pause" else "Lecture", 48.dp, AuraColors.Text, actions::mediaPlayPause) {
             Canvas(Modifier.size(17.dp)) { drawPlayPause(morph, CardBase) }
         }
-        RoundButton("Morceau suivant", 44.dp, null, actions::mediaNext) {
+        RoundButton("Morceau suivant", 44.dp, null, actions::mediaNext, glow = !reduceMotion) {
             Canvas(Modifier.size(15.dp)) { drawNext(AuraColors.Text) }
         }
     }
@@ -459,15 +541,45 @@ private fun RoundButton(
     size: androidx.compose.ui.unit.Dp,
     fill: Color?,
     onClick: () -> Unit,
+    glow: Boolean = false,
     content: @Composable () -> Unit,
 ) {
+    // Disque clair qui apparaît derrière l'icône au toucher puis s'efface (remplace l'ondulation).
+    val pressGlow = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+    val click = if (glow) {
+        Modifier
+            .drawBehind {
+                val g = pressGlow.value
+                if (g > 0f) {
+                    // Le disque s'élargit très légèrement en s'effaçant.
+                    drawCircle(
+                        Color.White.copy(alpha = 0.18f * g),
+                        radius = size.minDimension / 2f * (0.9f + 0.1f * (1f - g)),
+                    )
+                }
+            }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                role = Role.Button,
+            ) {
+                scope.launch {
+                    pressGlow.snapTo(1f)
+                    pressGlow.animateTo(0f, tween(PressGlowMs, easing = Standard))
+                }
+                onClick()
+            }
+    } else {
+        Modifier.clickable(role = Role.Button, onClick = onClick)
+    }
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
             .then(if (fill != null) Modifier.background(fill) else Modifier)
-            .clickable(role = Role.Button, onClick = onClick)
+            .then(click)
             .semantics { contentDescription = label },
     ) { content() }
 }
