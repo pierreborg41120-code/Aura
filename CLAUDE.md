@@ -102,7 +102,9 @@ Ne pas le changer, sinon l'utilisateur devra désinstaller Aura et perdra ses fa
 | Batterie + prochain rendez-vous sous l'heure (v0.1.9) | ✅ premier retour positif (« pas mal ») |
 | Raccourcis d'app : glisser un favori à droite, menu d'appui long (v0.1.9) | ✅ premier retour positif (« pas mal ») |
 | Nouvelle icône « éclipse » + calque monochrome (v0.1.9) | ✅ premier retour positif (« pas mal ») |
-| Carte de l'app (glisser un favori : notifications + widget + raccourcis) | ⚠️ nouveau, **à tester** (widget Tesla) |
+| Carte de l'app (glisser un favori : notifications + widget + raccourcis) | ✅ testé, widget Tesla OK (boutons fonctionnels) ; il était écrasé → hauteur revue + réglable, **à revérifier** |
+| Nouveau mini-lecteur (grande pochette, transitions, halo, progression) | ⏳ à tester |
+| Finitions de design « éclipse » (tokens dans Theme.kt, ombres de texte, A–Z en loupe) | ⏳ à tester |
 
 Si notifications ou lecteur ne marchent toujours pas : demander une capture du bloc **Diagnostic**
 (Réglages d'Aura → « Notifications et musique ») ; chaque ligne ✓/✗ correspond à une étape.
