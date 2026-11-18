@@ -64,6 +64,8 @@ class LauncherState {
     // --- Design ---
     /** Hauteur choisie (dp) pour le widget de chaque app ; absente = hauteur calculée. */
     var widgetHeights by mutableStateOf<Map<String, Int>>(emptyMap())
+    /** Augmente à chaque retour sur le launcher : déclenche l'apparition douce de l'accueil. */
+    var homeEntrance by mutableStateOf(0)
 }
 
 /** Ce que l'interface peut demander à l'activité. */

@@ -103,6 +103,8 @@ class MainActivity : ComponentActivity(), LauncherActions {
     override fun onStart() {
         super.onStart()
         widgets.startListening()
+        // --- Design ---
+        state.homeEntrance++
         refreshPermissions()
         if (state.hasNotificationAccess) {
             // Après une mise à jour de l'APK, Android oublie parfois de relancer le service.

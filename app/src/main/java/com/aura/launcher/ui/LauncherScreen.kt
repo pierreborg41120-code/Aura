@@ -4,6 +4,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -12,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import com.aura.launcher.LauncherActions
 import com.aura.launcher.LauncherState
 
@@ -31,10 +32,11 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
     Box(
         Modifier
             .fillMaxSize()
-            // Léger dégradé pour que le texte reste lisible sur n'importe quel fond d'écran.
+            // Léger dégradé pour que le texte reste lisible sur n'importe quel fond d'écran
+            // (plus marqué en haut, sous l'heure, et en bas, sous les favoris ; l'ombre de texte fait le reste).
             .background(
                 Brush.verticalGradient(
-                    listOf(Color(0x66000000), Color(0x22000000), Color(0x88000000)),
+                    AuraColors.WallpaperVeil,
                 ),
             ),
     ) {
@@ -42,24 +44,28 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
 
         AnimatedVisibility(
             visible = state.drawerOpen,
-            enter = slideInVertically { it / 3 } + fadeIn(),
-            exit = slideOutVertically { it / 3 } + fadeOut(),
+            // Le tiroir monte d'un sixième d'écran en se dévoilant, et repart plus vite qu'il n'est venu.
+            enter = slideInVertically(tween(AuraMotion.gentle, easing = AuraMotion.enter)) { it / 6 } +
+                fadeIn(tween(AuraMotion.standard)),
+            exit = slideOutVertically(tween(AuraMotion.standard, easing = AuraMotion.exit)) { it / 8 } +
+                fadeOut(tween(AuraMotion.quick + 40)),
         ) {
             AppDrawer(state, actions)
         }
 
         AnimatedVisibility(
             visible = state.settingsOpen,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = fadeIn(tween(AuraMotion.standard)) +
+                scaleIn(tween(AuraMotion.gentle, easing = AuraMotion.enter), initialScale = 0.97f),
+            exit = fadeOut(tween(AuraMotion.quick)),
         ) {
             SettingsScreen(state, actions)
         }
 
         AnimatedVisibility(
             visible = state.onboardingOpen,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = fadeIn(tween(AuraMotion.gentle)),
+            exit = fadeOut(tween(AuraMotion.standard)),
         ) {
             OnboardingScreen(state, actions)
         }

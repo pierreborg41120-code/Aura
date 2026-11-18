@@ -27,7 +27,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.aura.launcher.BatteryInfo
 import com.aura.launcher.LauncherActions
 import com.aura.launcher.LauncherState
@@ -36,9 +35,8 @@ import kotlinx.coroutines.delay
 import java.util.Calendar
 import java.util.Date
 
-/** Taille commune de la ligne : un cran sous la date (17 sp), pour rester discrète. */
-private val StatusSize = 14.sp
-private val StatusLineHeight = 20.sp
+/** Style commun de la ligne : un cran sous la date, avec l'ombre de lisibilité sur le fond d'écran. */
+private val StatusStyle = AuraType.status.onWallpaper()
 
 /** Espace fine insécable avant « % », à la française. */
 private const val NNBSP = ' '
@@ -53,7 +51,7 @@ fun StatusLine(state: LauncherState, actions: LauncherActions) {
     val event = state.nextEvent.takeIf { state.showNextEvent && state.hasCalendarAccess }
     if (battery == null && event == null) return
 
-    Column(Modifier.padding(top = 6.dp)) {
+    Column(Modifier.padding(top = AuraSpace.s)) {
         battery?.let { BatteryRow(it) }
         event?.let { EventRow(it) { actions.openEvent(it) } }
     }
@@ -69,14 +67,13 @@ private fun BatteryRow(battery: BatteryInfo) {
         battery.charging -> " · en charge"
         else -> ""
     }
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = AuraSpace.xs)) {
         BatteryGlyph(battery.percent, color)
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(AuraSpace.s))
         Text(
             text = "${battery.percent}$NNBSP%$suffix",
             color = color,
-            fontSize = StatusSize,
-            lineHeight = StatusLineHeight,
+            style = StatusStyle,
         )
     }
 }
@@ -108,14 +105,13 @@ private fun EventRow(event: NextEvent, onClick: () -> Unit) {
                 onClick = onClick,
             )
             // Zone de toucher confortable sans écarter visuellement la ligne.
-            .padding(vertical = 10.dp),
+            .padding(vertical = AuraSpace.s + AuraSpace.xxs),
     ) {
         if (tomorrow) StatusText("Demain · ", AuraColors.TextFaint)
         Text(
             text = event.title,
             color = AuraColors.TextDim,
-            fontSize = StatusSize,
-            lineHeight = StatusLineHeight,
+            style = StatusStyle,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false),
@@ -126,7 +122,7 @@ private fun EventRow(event: NextEvent, onClick: () -> Unit) {
 
 @Composable
 private fun StatusText(text: String, color: Color) {
-    Text(text = text, color = color, fontSize = StatusSize, lineHeight = StatusLineHeight, maxLines = 1)
+    Text(text = text, color = color, style = StatusStyle, maxLines = 1)
 }
 
 /** Petite pile dessinée à la main : contour, téton, remplissage proportionnel. */
@@ -137,6 +133,13 @@ private fun BatteryGlyph(percent: Int, color: Color) {
         val nub = 1.6.dp.toPx()
         val bodyW = size.width - nub - stroke / 2
         val radius = CornerRadius(2.dp.toPx())
+        drawRoundRect(
+            color = AuraColors.TextShadow.copy(alpha = 0.3f),
+            topLeft = Offset(0f, 1.dp.toPx()),
+            size = Size(bodyW, size.height),
+            cornerRadius = radius,
+            style = Stroke(width = stroke * 2f),
+        )
         drawRoundRect(
             color = color,
             topLeft = Offset(stroke / 2, stroke / 2),

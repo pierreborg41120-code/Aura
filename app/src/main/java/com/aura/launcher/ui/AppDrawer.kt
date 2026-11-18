@@ -1,6 +1,22 @@
 package com.aura.launcher.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlin.math.abs
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
@@ -50,13 +66,11 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.aura.launcher.AppEntry
 import com.aura.launcher.LauncherActions
 import com.aura.launcher.LauncherState
@@ -100,6 +114,7 @@ fun AppDrawer(state: LauncherState, actions: LauncherActions) {
                 value = query,
                 onValueChange = { state.query = it },
                 onGo = { results.firstOrNull()?.let(actions::launch) },
+                textScale = state.textScale,
             )
             if (query.isBlank()) {
                 AlphabeticalList(state, actions, apps)
@@ -128,48 +143,116 @@ private fun search(apps: List<AppEntry>, query: String): List<AppEntry> {
     return starts + wordStarts + contains
 }
 
+/**
+ * Champ de recherche : une carte arrondie avec une loupe dessinée, et une croix pour effacer
+ * dès qu'on a tapé quelque chose. Le contour s'éclaire en lavande quand le champ a le focus.
+ */
 @Composable
-private fun SearchField(value: String, onValueChange: (String) -> Unit, onGo: () -> Unit) {
+private fun SearchField(value: String, onValueChange: (String) -> Unit, onGo: () -> Unit, textScale: Float) {
+    var focused by remember { mutableStateOf(false) }
+    val border by animateColorAsState(
+        if (focused) AuraColors.Accent.copy(alpha = 0.55f) else AuraColors.Hairline,
+        tween(AuraMotion.standard),
+        label = "contour",
+    )
+    val shape = RoundedCornerShape(AuraRadius.m)
+    val style = AuraType.row.scaled(textScale)
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
         singleLine = true,
-        textStyle = TextStyle(color = AuraColors.Text, fontSize = 18.sp),
+        textStyle = style.copy(color = AuraColors.Text),
         cursorBrush = SolidColor(AuraColors.Accent),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
         keyboardActions = KeyboardActions(onGo = { onGo() }),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(start = AuraSpace.l, end = AuraSpace.l, top = AuraSpace.m, bottom = AuraSpace.xs)
+            .onFocusChanged { focused = it.isFocused },
         decorationBox = { inner ->
-            Box(
-                Modifier
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
                     .fillMaxWidth()
-                    .background(AuraColors.Surface, RoundedCornerShape(14.dp))
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .clip(shape)
+                    .background(AuraColors.Surface)
+                    .border(1.dp, border, shape)
+                    .padding(start = AuraSpace.l, end = AuraSpace.xs)
+                    .heightIn(min = 52.dp),
             ) {
-                if (value.isEmpty()) {
-                    Text("Rechercher", color = AuraColors.TextFaint, fontSize = 18.sp)
+                SearchGlyph(if (focused) AuraColors.AccentLight else AuraColors.TextFaint)
+                Spacer(Modifier.width(AuraSpace.m))
+                Box(Modifier.weight(1f)) {
+                    if (value.isEmpty()) {
+                        Text("Rechercher une app", color = AuraColors.TextFaint, style = style)
+                    }
+                    inner()
                 }
-                inner()
+                if (value.isNotEmpty()) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(AuraSpace.touch)
+                            .clip(CircleShape)
+                            .clickable(onClickLabel = "Effacer la recherche") { onValueChange("") },
+                    ) {
+                        ClearGlyph(AuraColors.TextDim)
+                    }
+                } else {
+                    Spacer(Modifier.width(AuraSpace.m))
+                }
             }
         },
     )
+}
+
+/** Loupe : un cercle et un manche. */
+@Composable
+private fun SearchGlyph(color: Color) {
+    Canvas(Modifier.size(18.dp)) {
+        val stroke = 1.6.dp.toPx()
+        val r = size.minDimension * 0.34f
+        val c = Offset(size.width * 0.42f, size.height * 0.42f)
+        drawCircle(color, radius = r, center = c, style = Stroke(stroke))
+        val d = r * 0.72f
+        drawLine(
+            color,
+            Offset(c.x + d, c.y + d),
+            Offset(size.width * 0.92f, size.height * 0.92f),
+            stroke,
+            StrokeCap.Round,
+        )
+    }
+}
+
+/** Croix d'effacement. */
+@Composable
+private fun ClearGlyph(color: Color) {
+    Canvas(Modifier.size(12.dp)) {
+        val stroke = 1.6.dp.toPx()
+        drawLine(color, Offset.Zero, Offset(size.width, size.height), stroke, StrokeCap.Round)
+        drawLine(color, Offset(size.width, 0f), Offset(0f, size.height), stroke, StrokeCap.Round)
+    }
 }
 
 @Composable
 private fun SearchResults(state: LauncherState, actions: LauncherActions, results: List<AppEntry>) {
     if (results.isEmpty()) {
         Text(
-            "Aucune app trouvée",
+            "Aucune app ne correspond. Vérifie l'orthographe ou affiche les apps masquées dans les réglages.",
             color = AuraColors.TextDim,
-            fontSize = 16.sp,
-            modifier = Modifier.padding(horizontal = 28.dp, vertical = 16.dp),
+            style = AuraType.body,
+            modifier = Modifier.padding(horizontal = AuraSpace.gutter, vertical = AuraSpace.l),
         )
         return
     }
     LazyColumn(
-        contentPadding = PaddingValues(start = 28.dp, end = 28.dp, bottom = 24.dp),
+        contentPadding = PaddingValues(
+            start = AuraSpace.gutter,
+            end = AuraSpace.gutter,
+            top = AuraSpace.s,
+            bottom = AuraSpace.xl,
+        ),
         modifier = Modifier.fillMaxSize(),
     ) {
         items(results, key = { it.key }) { app ->
@@ -178,7 +261,7 @@ private fun SearchResults(state: LauncherState, actions: LauncherActions, result
                 actions = actions,
                 showIcon = state.showIcons,
                 iconSize = (34 * state.textScale).dp,
-                fontSize = (19 * state.textScale).sp,
+                textStyle = AuraType.row.scaled(state.textScale),
                 badge = state.notificationsFor(app) != null,
                 menu = drawerMenu(state, actions, app),
             )
@@ -248,7 +331,7 @@ private fun AlphabeticalList(state: LauncherState, actions: LauncherActions, app
     Row(Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(start = 28.dp, end = 8.dp, bottom = 24.dp),
+            contentPadding = PaddingValues(start = AuraSpace.gutter, end = AuraSpace.s, bottom = AuraSpace.xl),
             modifier = Modifier
                 .weight(1f)
                 .fillMaxHeight()
@@ -256,19 +339,13 @@ private fun AlphabeticalList(state: LauncherState, actions: LauncherActions, app
         ) {
             items(entries, key = { it.id }) { item ->
                 when (item) {
-                    is DrawerItem.Header -> Text(
-                        text = item.letter,
-                        color = AuraColors.Accent,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(top = 18.dp, bottom = 4.dp),
-                    )
+                    is DrawerItem.Header -> LetterHeader(item.letter)
                     is DrawerItem.App -> AppRow(
                         app = item.app,
                         actions = actions,
                         showIcon = state.showIcons,
                         iconSize = (34 * state.textScale).dp,
-                        fontSize = (19 * state.textScale).sp,
+                        textStyle = AuraType.row.scaled(state.textScale),
                         badge = state.notificationsFor(item.app) != null,
                         menu = drawerMenu(state, actions, item.app),
                     )
@@ -289,14 +366,47 @@ private fun AlphabeticalList(state: LauncherState, actions: LauncherActions, app
     }
 }
 
-/** Barre de lettres sur le bord droit : on y glisse le pouce pour naviguer. */
+/** En-tête de lettre : la lettre en lavande, suivie d'un filet qui s'efface vers la droite. */
+@Composable
+private fun LetterHeader(letter: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = AuraSpace.l + AuraSpace.xs, bottom = AuraSpace.xs),
+    ) {
+        Text(text = letter, color = AuraColors.Accent, style = AuraType.letter)
+        Spacer(Modifier.width(AuraSpace.m))
+        Box(
+            Modifier
+                .weight(1f)
+                .height(1.dp)
+                .background(Brush.horizontalGradient(listOf(AuraColors.Hairline, Color.Transparent))),
+        )
+    }
+}
+
+/**
+ * Barre de lettres sur le bord droit : on y glisse le pouce pour naviguer.
+ * Pendant le glissement, les lettres proches du doigt grossissent et se décalent vers la gauche
+ * (effet loupe), et une bulle cerclée de lavande montre la lettre en grand à côté du pouce.
+ */
 @Composable
 private fun LetterBar(available: Set<String>, onLetter: (String) -> Unit) {
     val haptics = LocalHapticFeedback.current
+    val density = LocalDensity.current
     val currentOnLetter by rememberUpdatedState(onLetter)
     var barHeight by remember { mutableIntStateOf(1) }
     var selected by remember { mutableStateOf<String?>(null) }
+    var shownLetter by remember { mutableStateOf("A") }
     var touchY by remember { mutableFloatStateOf(0f) }
+    val touching = selected != null
+    // 0 → 1 à l'appui, 1 → 0 au relâchement : pilote la loupe et la bulle.
+    val active by animateFloatAsState(
+        if (touching) 1f else 0f,
+        tween(if (touching) AuraMotion.quick else AuraMotion.standard, easing = AuraMotion.enter),
+        label = "barre",
+    )
 
     fun select(y: Float) {
         touchY = y.coerceIn(0f, barHeight.toFloat())
@@ -304,18 +414,23 @@ private fun LetterBar(available: Set<String>, onLetter: (String) -> Unit) {
         val letter = ALPHABET[index]
         if (letter != selected) {
             selected = letter
+            shownLetter = letter
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             currentOnLetter(letter)
         }
     }
 
+    val pad = AuraSpace.s
+    val padPx = with(density) { pad.toPx() }
+    val shiftPx = with(density) { 14.dp.toPx() }
+
     Box(Modifier.fillMaxHeight().width(36.dp)) {
         Column(
-            verticalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceEvenly,
+            verticalArrangement = Arrangement.SpaceEvenly,
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(vertical = 8.dp)
+                .padding(vertical = pad)
                 .onSizeChanged { barHeight = it.height.coerceAtLeast(1) }
                 .pointerInput(Unit) {
                     awaitEachGesture {
@@ -333,34 +448,59 @@ private fun LetterBar(available: Set<String>, onLetter: (String) -> Unit) {
                     }
                 },
         ) {
-            ALPHABET.forEach { letter ->
+            val slot = barHeight.toFloat() / ALPHABET.size
+            ALPHABET.forEachIndexed { index, letter ->
+                // Distance au doigt, en nombre de lettres : la loupe agit sur ~3 lettres de chaque côté.
+                val center = slot * (index + 0.5f)
+                val proximity = (1f - abs(center - touchY) / (slot * 3.5f)).coerceIn(0f, 1f) * active
                 Text(
                     text = letter,
-                    fontSize = 11.sp,
-                    fontWeight = if (letter == selected) FontWeight.Bold else FontWeight.Normal,
+                    style = AuraType.letterBar,
                     color = when {
                         letter == selected -> AuraColors.Accent
                         letter in available -> AuraColors.TextDim
-                        else -> AuraColors.TextFaint.copy(alpha = 0.25f)
+                        else -> AuraColors.TextFaint.copy(alpha = 0.3f)
+                    },
+                    modifier = Modifier.graphicsLayer {
+                        val scale = 1f + 0.8f * proximity * proximity
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = -shiftPx * proximity * proximity
                     },
                 )
             }
         }
     }
 
-    // Bulle qui affiche la lettre en grand pendant le glissement.
-    selected?.let { letter ->
-        val bubble = 56.dp
-        val bubblePx = with(LocalDensity.current) { bubble.toPx() }
+    // Bulle qui affiche la lettre en grand pendant le glissement : anneau lavande, fond nuit.
+    if (active > 0.01f) {
+        val bubble = 64.dp
+        val bubblePx = with(density) { bubble.toPx() }
         Box(Modifier.width(0.dp).fillMaxHeight()) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .offset { IntOffset(-(bubblePx * 1.6f).roundToInt(), (touchY - bubblePx / 2).roundToInt()) }
+                    .offset {
+                        IntOffset(
+                            -(bubblePx * 1.7f).roundToInt(),
+                            (touchY + padPx - bubblePx / 2).roundToInt(),
+                        )
+                    }
+                    .graphicsLayer {
+                        alpha = active
+                        val scale = 0.7f + 0.3f * active
+                        scaleX = scale
+                        scaleY = scale
+                    }
                     .size(bubble)
-                    .background(AuraColors.Accent, CircleShape),
+                    .background(AuraColors.Surface, CircleShape)
+                    .border(1.5.dp, AuraColors.Accent, CircleShape),
             ) {
-                Text(letter, color = AuraColors.DrawerScrim, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    shownLetter,
+                    color = AuraColors.AccentLight,
+                    style = AuraType.screenTitle.copy(fontWeight = FontWeight.Light),
+                )
             }
         }
     }
