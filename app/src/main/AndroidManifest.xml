@@ -8,6 +8,10 @@
     <!-- Sous l'heure : lecture du prochain rendez-vous (demandée seulement si l'option est activée). -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
 
+    <!-- Météo (optionnelle, désactivée par défaut) : prévisions Open-Meteo et position approximative. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />

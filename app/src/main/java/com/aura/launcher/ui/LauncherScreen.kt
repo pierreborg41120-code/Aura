@@ -83,5 +83,8 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
 
         // --- Raccourcis d'app ---
         ShortcutsSheet(state, actions)
+
+        // --- Météo ---
+        WeatherSheet(state)
     }
 }

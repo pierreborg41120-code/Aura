@@ -70,6 +70,17 @@ class LauncherState {
     // --- Réponses aux notifications ---
     /** Réglage « Répondre depuis l'accueil » : champ de réponse et effacement dans la carte de l'app. */
     var replyFromHome by mutableStateOf(true)
+
+    // --- Météo ---
+    var weatherEnabled by mutableStateOf(false)
+    var weatherUseCity by mutableStateOf(false)
+    var weatherFahrenheit by mutableStateOf(false)
+    var weatherCity by mutableStateOf<WeatherPlace?>(null)
+    /** Dernières prévisions affichables (null = rien à montrer, ou trop vieilles). */
+    var weather by mutableStateOf<WeatherData?>(null)
+    /** Message d'état pour les réglages (position introuvable, hors ligne…), null si tout va bien. */
+    var weatherStatus by mutableStateOf<String?>(null)
+    var weatherSheetOpen by mutableStateOf(false)
 }
 
 /** Ce que l'interface peut demander à l'activité. */
@@ -137,4 +148,15 @@ interface LauncherActions {
 
     // --- Réponses aux notifications ---
     fun setReplyFromHome(enabled: Boolean)
+
+    // --- Météo ---
+    fun setWeatherEnabled(enabled: Boolean)
+    /** Passe sur « Ma position » (demande la localisation approximative si besoin). */
+    fun useWeatherLocation()
+    /** Passe sur « Ville… » (garde la ville déjà choisie, s'il y en a une). */
+    fun useWeatherCity()
+    /** Villes trouvées : vide si aucune, null si la recherche a échoué (hors ligne). */
+    suspend fun searchWeatherCity(name: String): List<WeatherPlace>?
+    fun setWeatherCity(place: WeatherPlace)
+    fun setWeatherFahrenheit(fahrenheit: Boolean)
 }

@@ -31,6 +31,12 @@ import com.aura.launcher.BatteryInfo
 import com.aura.launcher.LauncherActions
 import com.aura.launcher.LauncherState
 import com.aura.launcher.NextEvent
+import com.aura.launcher.WeatherData
+import com.aura.launcher.displayTemp
+import com.aura.launcher.weatherKind
+import com.aura.launcher.weatherLabel
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import kotlinx.coroutines.delay
 import java.util.Calendar
 import java.util.Date
@@ -42,18 +48,56 @@ private val StatusStyle = AuraType.status.onWallpaper()
 private const val NNBSP = ' '
 
 /**
- * Infos sous l'heure et la date : batterie, puis prochain rendez-vous.
- * Rien n'est affiché si les deux sont désactivés ou indisponibles.
+ * Infos sous l'heure et la date : batterie et météo sur une ligne, puis prochain rendez-vous.
+ * Rien n'est affiché si tout est désactivé ou indisponible.
  */
 @Composable
 fun StatusLine(state: LauncherState, actions: LauncherActions) {
     val battery = state.battery.takeIf { state.showBattery }
     val event = state.nextEvent.takeIf { state.showNextEvent && state.hasCalendarAccess }
-    if (battery == null && event == null) return
+    // --- Météo ---
+    val weather = state.weather.takeIf { state.weatherEnabled }
+    if (battery == null && event == null && weather == null) return
 
     Column(Modifier.padding(top = AuraSpace.s)) {
-        battery?.let { BatteryRow(it) }
+        // Batterie et météo partagent la même ligne, séparées par « · ».
+        if (battery != null || weather != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                battery?.let { BatteryRow(it) }
+                if (battery != null && weather != null) StatusText(" · ", AuraColors.TextDim)
+                weather?.let {
+                    WeatherChip(it, state.weatherFahrenheit) { state.weatherSheetOpen = true }
+                }
+            }
+        }
         event?.let { EventRow(it) { actions.openEvent(it) } }
+    }
+}
+
+// --- Météo ---
+/** « ☀ 14° » : pictogramme dessiné et température ; un toucher ouvre les prévisions. */
+@Composable
+private fun WeatherChip(data: WeatherData, fahrenheit: Boolean, onClick: () -> Unit) {
+    val now = data.now()
+    val temp = displayTemp(now.temp, fahrenheit)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClickLabel = "Voir les prévisions",
+                onClick = onClick,
+            )
+            // Zone de toucher confortable sans écarter visuellement la ligne.
+            .padding(vertical = AuraSpace.s + AuraSpace.xxs)
+            .semantics(mergeDescendants = true) {
+                contentDescription = "${weatherLabel(now.code)}, $temp degrés"
+            },
+    ) {
+        WeatherGlyph(weatherKind(now.code), now.isDay, AuraColors.TextDim, 15.dp, onWallpaper = true)
+        Spacer(Modifier.width(AuraSpace.xs + AuraSpace.xxs))
+        Text(text = "$temp°", color = AuraColors.TextDim, style = StatusStyle, maxLines = 1)
     }
 }
 
