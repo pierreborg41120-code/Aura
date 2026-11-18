@@ -19,8 +19,18 @@ import kotlin.math.pow
 /** Durée de la transition « liquide » entre deux pochettes. */
 const val LiquidTransitionMs = 720
 
-/** La transition liquide a besoin des shaders AGSL (Android 13+). En dessous : révélation en disque. */
-val liquidTransitionSupported: Boolean get() = Build.VERSION.SDK_INT >= 33
+/**
+ * La transition liquide a besoin des shaders AGSL (Android 13+). En dessous, ou si le shader ne
+ * compile pas sur ce téléphone (testé une seule fois, sans jamais planter) : révélation en disque.
+ */
+val liquidTransitionSupported: Boolean by lazy {
+    Build.VERSION.SDK_INT >= 33 && try {
+        RuntimeShader(LIQUID_AGSL)
+        true
+    } catch (e: Exception) {
+        false
+    }
+}
 
 /**
  * Courbe de la transition : départ lent (l'ancienne pochette commence à fondre), front rapide,
