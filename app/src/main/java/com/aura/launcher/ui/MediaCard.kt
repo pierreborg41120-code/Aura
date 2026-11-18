@@ -24,7 +24,6 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.using
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -291,8 +290,7 @@ private fun trackTransform(direction: Int, reduceMotion: Boolean, isArt: Boolean
     if (direction == 0) {
         val enter = fadeIn(tween(380, delay, Standard)) +
             scaleIn(tween(420, delay, EmphasizedDecelerate), initialScale = if (isArt) 0.94f else 1f)
-        return (enter togetherWith fadeOut(tween(180, easing = EmphasizedAccelerate)))
-            .using(SizeTransform(clip = false))
+        return ContentTransform(enter, fadeOut(tween(180, easing = EmphasizedAccelerate)), sizeTransform = SizeTransform(clip = false))
     }
     val share = if (isArt) 0.9f else 0.3f
     var enter = slideInHorizontally(tween(440, delay, EmphasizedDecelerate)) { w -> (direction * w * share).toInt() } +
@@ -303,7 +301,7 @@ private fun trackTransform(direction: Int, reduceMotion: Boolean, isArt: Boolean
         enter += scaleIn(spring(dampingRatio = 0.55f, stiffness = 420f), initialScale = 0.84f)
         exit += scaleOut(tween(220, easing = EmphasizedAccelerate), targetScale = 0.88f)
     }
-    return (enter togetherWith exit).using(SizeTransform(clip = false))
+    return ContentTransform(enter, exit, sizeTransform = SizeTransform(clip = false))
 }
 
 /** Pochette carrée aux coins doux ; une note dessinée la remplace si l'app n'en fournit pas. */
