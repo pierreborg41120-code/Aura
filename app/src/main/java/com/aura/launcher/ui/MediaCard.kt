@@ -384,8 +384,9 @@ private fun textTransform(direction: Int, reduceMotion: Boolean, shiftPx: Int): 
 }
 
 /**
- * Pochette carrée aux coins doux, dans un cadre fixe. Quand l'image change, la nouvelle se
- * révèle par-dessus l'ancienne (immobile dessous) à travers un disque au bord ondulé qui grandit
+ * Pochette carrée aux coins doux, dans un cadre fixe. Quand l'image change : sur Android 13+,
+ * transition « liquide » par shader (voir LiquidTransition.kt) ; sinon, ou si l'une des deux
+ * images manque, la nouvelle se révèle par-dessus l'ancienne à travers un disque au bord ondulé qui grandit
  * depuis le côté du saut : suivant → depuis la droite, précédent → depuis la gauche, changement
  * externe → depuis le centre. Une note dessinée remplace l'image si l'app n'en fournit pas.
  */
@@ -418,8 +419,9 @@ private fun Artwork(art: ImageBitmap?, direction: Int, accent: Color, reduceMoti
         revealFrom = currentDirection
         progress.snapTo(0f)
         revealing = true
-        // Progression linéaire : la courbe est appliquée au rayon, les ondulations restent régulières.
-        progress.animateTo(1f, tween(ArtRevealMs, easing = LinearEasing))
+        // Progression linéaire : la courbe est appliquée dans le dessin (rayon du disque ou shader).
+        val liquid = liquidTransitionSupported && base != null && art != null
+        progress.animateTo(1f, tween(if (liquid) LiquidTransitionMs else ArtRevealMs, easing = LinearEasing))
         base = art
         revealing = false
         incoming = null
@@ -435,7 +437,12 @@ private fun Artwork(art: ImageBitmap?, direction: Int, accent: Color, reduceMoti
             .background(placeholder),
     ) {
         ArtLayer(base, placeholder, Modifier)
-        if (revealing) {
+        val from = base
+        val to = incoming
+        if (revealing && liquidTransitionSupported && from != null && to != null) {
+            // Android 13+ : l'ancienne pochette fond comme un liquide et la nouvelle prend sa place.
+            LiquidArtTransition(from, to, revealFrom, { progress.value })
+        } else if (revealing) {
             ArtLayer(
                 incoming,
                 placeholder,
