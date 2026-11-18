@@ -66,6 +66,21 @@ class LauncherState {
     var widgetHeights by mutableStateOf<Map<String, Int>>(emptyMap())
     /** Augmente à chaque retour sur le launcher : déclenche l'apparition douce de l'accueil. */
     var homeEntrance by mutableStateOf(0)
+
+    // --- Accueil ---
+    /** Widget libre de l'accueil (null = aucun). */
+    var homeWidgetId by mutableStateOf<Int?>(null)
+    var homeWidgetPosition by mutableStateOf(HOME_WIDGET_ABOVE_FAVORITES)
+    /** Hauteur choisie (dp) ; null = hauteur calculée d'après le widget. */
+    var homeWidgetHeight by mutableStateOf<Int?>(null)
+    /** Sélecteur du widget d'accueil ouvert. */
+    var homeWidgetPicking by mutableStateOf(false)
+    var showHeadphoneApps by mutableStateOf(true)
+    var headphonesConnected by mutableStateOf(false)
+    /** Paquets des apps de musique à proposer aux écouteurs, par ordre de préférence. */
+    var headphonePackages by mutableStateOf<List<String>>(emptyList())
+    var allowRotation by mutableStateOf(false)
+    var hapticsEnabled by mutableStateOf(true)
 }
 
 /** Ce que l'interface peut demander à l'activité. */
@@ -130,4 +145,17 @@ interface LauncherActions {
     // --- Design ---
     /** Mémorise la hauteur (dp) du widget de l'app ; null revient à la hauteur calculée. */
     fun setWidgetHeight(app: AppEntry, heightDp: Int?)
+
+    // --- Accueil ---
+    /** Tous les widgets installés, groupés par app. À appeler hors du thread principal. */
+    fun loadAllWidgetGroups(): List<WidgetGroup>
+    /** Ajoute (ou remplace) le widget de l'accueil : autorisation puis configuration si besoin. */
+    fun addHomeWidget(provider: WidgetProvider)
+    fun removeHomeWidget()
+    fun setHomeWidgetPosition(position: String)
+    /** null revient à la hauteur calculée. */
+    fun setHomeWidgetHeight(heightDp: Int?)
+    fun setShowHeadphoneApps(show: Boolean)
+    fun setAllowRotation(allow: Boolean)
+    fun setHapticsEnabled(enabled: Boolean)
 }

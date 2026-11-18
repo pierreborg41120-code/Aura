@@ -30,6 +30,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.runtime.mutableStateOf
+import com.aura.launcher.HOME_WIDGET_UNDER_CLOCK
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -81,10 +86,14 @@ fun HomeScreen(state: LauncherState, actions: LauncherActions) {
         }
     }
     val slide = with(density) { AuraSpace.l.toPx() }
+    // --- Accueil --- zone du widget d'accueil, que l'appui long « réglages » doit ignorer.
+    val widgetArea = remember { HomeWidgetArea() }
+    var homeOrigin by remember { mutableStateOf(Offset.Zero) }
 
     Column(
         Modifier
             .fillMaxSize()
+            .onGloballyPositioned { homeOrigin = it.positionInRoot() }
             // Glisser vers le haut : toutes les apps. Vers le bas : notifications.
             .pointerInputVerticalSwipe(
                 threshold = swipeThreshold,
@@ -93,9 +102,12 @@ fun HomeScreen(state: LauncherState, actions: LauncherActions) {
             )
             // Appui long dans le vide : réglages. Double-toucher : verrouiller l'écran.
             .pointerInputTaps(
-                onLongPress = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    state.settingsOpen = true
+                onLongPress = { offset ->
+                    // Sur le widget d'accueil, c'est lui qui ouvre son menu.
+                    if (state.homeWidgetId == null || !widgetArea.rect.contains(offset + homeOrigin)) {
+                        haptics.auraHaptic(HapticFeedbackType.LongPress)
+                        state.settingsOpen = true
+                    }
                 },
                 onDoubleTap = { actions.lockScreen() },
             )
@@ -109,12 +121,24 @@ fun HomeScreen(state: LauncherState, actions: LauncherActions) {
         Spacer(Modifier.height(AuraSpace.xxxl + AuraSpace.l))
         Clock(actions)
         StatusLine(state, actions)
+        // --- Accueil --- widget libre « sous l'heure ».
+        if (state.homeWidgetPosition == HOME_WIDGET_UNDER_CLOCK && state.homeWidgetId != null) {
+            Spacer(Modifier.height(AuraSpace.l))
+            HomeWidget(state, actions, widgetArea)
+        }
 
         Spacer(Modifier.weight(1f))
 
         state.media?.let { media ->
             MediaCard(media, actions, state.textScale)
             Spacer(Modifier.height(AuraSpace.xl))
+        }
+        // --- Accueil --- apps de musique quand des écouteurs sont branchés et que rien ne joue.
+        HeadphonesRow(state, actions)
+        // --- Accueil --- widget libre « au-dessus des favoris ».
+        if (state.homeWidgetPosition != HOME_WIDGET_UNDER_CLOCK && state.homeWidgetId != null) {
+            HomeWidget(state, actions, widgetArea)
+            Spacer(Modifier.height(AuraSpace.l))
         }
 
         val favorites = state.favoriteApps
@@ -279,10 +303,10 @@ private fun Modifier.pointerInputVerticalSwipe(
     },
 )
 
-private fun Modifier.pointerInputTaps(onLongPress: () -> Unit, onDoubleTap: () -> Unit): Modifier = this.then(
+private fun Modifier.pointerInputTaps(onLongPress: (Offset) -> Unit, onDoubleTap: () -> Unit): Modifier = this.then(
     Modifier.pointerInput("taps") {
         detectTapGestures(
-            onLongPress = { onLongPress() },
+            onLongPress = { onLongPress(it) },
             onDoubleTap = { onDoubleTap() },
         )
     },

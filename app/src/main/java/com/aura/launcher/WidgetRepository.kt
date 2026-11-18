@@ -5,9 +5,11 @@ import android.appwidget.AppWidgetHostView
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
+import android.content.pm.LauncherApps
 import android.graphics.Bitmap
 import android.os.Build
 import android.os.Bundle
+import android.os.Process
 import android.util.SizeF
 import android.view.View
 import androidx.compose.ui.graphics.ImageBitmap
@@ -32,6 +34,14 @@ data class WidgetProvider(
             null
         }
 }
+
+// --- Accueil ---
+/** Widgets d'une même app (sélecteur du widget d'accueil). */
+data class WidgetGroup(
+    val key: String,
+    val appLabel: String,
+    val providers: List<WidgetProvider>,
+)
 
 /**
  * Hôte de widgets d'Aura : un seul AppWidgetHost (id constant) pour toutes les cartes d'app.
@@ -130,11 +140,62 @@ class WidgetRepository(private val context: Context) {
     fun cleanUp(saved: Map<String, Int>): Map<String, Int> {
         val valid = saved.filterValues { info(it) != null }
         (saved.values - valid.values.toSet()).forEach(::deleteId)
+        // --- Accueil --- le widget libre de l'accueil (et celui en cours d'ajout) ne sont pas orphelins.
+        val keep = valid.values.toSet() + protectedIds + listOfNotNull(Prefs(context).homeWidgetId)
         try {
-            host.appWidgetIds.filter { it !in valid.values }.forEach(::deleteId)
+            host.appWidgetIds.filter { it !in keep }.forEach(::deleteId)
         } catch (e: Exception) {
         }
         return valid
+    }
+
+    // --- Accueil ---
+
+    /** Ids à ne jamais supprimer au nettoyage (widget d'accueil en cours d'ajout). */
+    val protectedIds = mutableSetOf<Int>()
+
+    /**
+     * Tous les widgets d'écran d'accueil installés (profils pro inclus), groupés par app et triés
+     * par nom d'app. À appeler hors du thread principal.
+     */
+    fun allProviderGroups(): List<WidgetGroup> {
+        val launcherApps = context.getSystemService(LauncherApps::class.java)
+        val profiles = try {
+            launcherApps?.profiles.orEmpty()
+        } catch (e: Exception) {
+            emptyList()
+        }.ifEmpty { listOf(Process.myUserHandle()) }
+        val pm = context.packageManager
+        return profiles.flatMap { profile ->
+            val providers = try {
+                manager.getInstalledProvidersForProfile(profile).orEmpty()
+            } catch (e: Exception) {
+                emptyList()
+            }
+            providers
+                .filter { it.widgetCategory and AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN != 0 }
+                .groupBy { it.provider.packageName }
+                .map { (pkg, infos) ->
+                    // Nom de l'app : d'abord celui du launcher (marche aussi pour le profil pro).
+                    val appLabel = try {
+                        launcherApps?.getActivityList(pkg, profile)?.firstOrNull()?.label?.toString()
+                    } catch (e: Exception) {
+                        null
+                    } ?: try {
+                        pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+                    } catch (e: Exception) {
+                        null
+                    } ?: pkg
+                    val isWork = profile != Process.myUserHandle()
+                    WidgetGroup(
+                        key = "$pkg#${profile.hashCode()}",
+                        appLabel = if (isWork) "$appLabel (pro)" else appLabel,
+                        providers = infos
+                            .map { WidgetProvider(it, it.loadLabel(pm)?.trim().orEmpty().ifEmpty { appLabel }) }
+                            .sortedBy { it.label.lowercase() },
+                    )
+                }
+        }.sortedBy { AppEntry.normalize(it.appLabel) }
     }
 
     companion object {

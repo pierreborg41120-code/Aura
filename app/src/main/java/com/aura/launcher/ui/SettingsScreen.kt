@@ -41,6 +41,7 @@ fun SettingsScreen(state: LauncherState, actions: LauncherActions) {
     ) {
         Text("Réglages", color = AuraColors.Text, style = AuraType.screenTitle)
         Spacer(Modifier.height(AuraSpace.l))
+        com.aura.launcher.ui.settings.HomeSettings(state, actions) // --- Accueil ---
 
         ToggleRow("Afficher les icônes", state.showIcons, actions::setShowIcons)
         ToggleRow(

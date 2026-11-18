@@ -83,5 +83,15 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
 
         // --- Raccourcis d'app ---
         ShortcutsSheet(state, actions)
+
+        // --- Accueil ---
+        AnimatedVisibility(
+            visible = state.homeWidgetPicking,
+            enter = fadeIn(tween(AuraMotion.standard)) +
+                slideInVertically(tween(AuraMotion.gentle, easing = AuraMotion.enter)) { it / 8 },
+            exit = fadeOut(tween(AuraMotion.quick)),
+        ) {
+            HomeWidgetPicker(state, actions)
+        }
     }
 }

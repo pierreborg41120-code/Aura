@@ -262,7 +262,7 @@ private fun TrackInfo(
                     },
                     onDragEnd = {
                         if (abs(raw) > threshold) {
-                            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                            view.auraHaptic(HapticFeedbackConstants.VIRTUAL_KEY)
                             if (raw < 0) currentActions.mediaNext() else currentActions.mediaPrevious()
                         }
                         settle()
@@ -278,7 +278,7 @@ private fun TrackInfo(
                         if (beyond != crossed) {
                             crossed = beyond
                             // Petit « tic » quand on franchit le seuil.
-                            if (beyond) view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            if (beyond) view.auraHaptic(HapticFeedbackConstants.CLOCK_TICK)
                         }
                     },
                 )
@@ -635,7 +635,7 @@ private fun Progress(
             barModifier = barModifier
                 .pointerInput(Unit) {
                     detectTapGestures { offset ->
-                        view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        view.auraHaptic(HapticFeedbackConstants.CLOCK_TICK)
                         commit((offset.x / size.width).coerceIn(0f, 1f))
                     }
                 }
