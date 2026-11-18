@@ -64,6 +64,7 @@ fun HomeScreen(state: LauncherState, actions: LauncherActions) {
     ) {
         Spacer(Modifier.height(56.dp))
         Clock(actions)
+        StatusLine(state, actions)
 
         Spacer(Modifier.weight(1f))
 
