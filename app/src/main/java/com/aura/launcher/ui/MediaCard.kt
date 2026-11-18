@@ -555,7 +555,7 @@ private fun RoundButton(
                     // Le disque s'élargit très légèrement en s'effaçant.
                     drawCircle(
                         Color.White.copy(alpha = 0.18f * g),
-                        radius = size.minDimension / 2f * (0.9f + 0.1f * (1f - g)),
+                        radius = this.size.minDimension / 2f * (0.9f + 0.1f * (1f - g)),
                     )
                 }
             }
