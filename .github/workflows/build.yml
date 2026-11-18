@@ -1,0 +1,48 @@
+name: Build APK
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Compiler l'APK
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+          mkdir -p out
+          cp app/build/outputs/apk/release/app-release.apk "out/Aura-${{ github.run_number }}.apk"
+
+      - name: Joindre l'APK au build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aura-${{ github.run_number }}
+          path: out/*.apk
+
+      # Sur la branche principale, on publie une « release » : un lien direct vers l'APK,
+      # facile à télécharger depuis le téléphone.
+      - name: Publier une release
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v0.1.${{ github.run_number }}" out/*.apk \
+            --title "Aura 0.1.${{ github.run_number }}" \
+            --notes "APK compilé automatiquement depuis ${{ github.sha }}." \
+            --latest
