@@ -1,5 +1,6 @@
 package com.aura.launcher
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.role.RoleManager
 import android.content.ActivityNotFoundException
@@ -21,9 +22,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.aura.launcher.ui.AuraTheme
 import com.aura.launcher.ui.LauncherScreen
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity(), LauncherActions {
@@ -392,4 +396,107 @@ class MainActivity : ComponentActivity(), LauncherActions {
 
     override fun loadShortcutIcon(shortcut: AppShortcut, sizePx: Int): ImageBitmap? =
         shortcutRepo.loadIcon(shortcut, sizePx)
+
+    // --- Sous l'heure : batterie + agenda ---
+    private var deviceInfo: DeviceInfoWatcher? = null
+    private var stopCalendarObserver: (() -> Unit)? = null
+    private var calendarJob: Job? = null
+
+    /** Fenêtre système « Autoriser Aura à accéder à votre agenda ? ». */
+    private val calendarPermissionRequest =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            state.hasCalendarAccess = granted
+            if (granted) {
+                state.showNextEvent = true
+                prefs.showNextEvent = true
+                startCalendarObserver()
+                refreshNextEvent()
+            } else if (!shouldShowRequestPermissionRationale(Manifest.permission.READ_CALENDAR)) {
+                // Refus définitif : Android n'affichera plus la fenêtre, on ouvre la page d'Aura.
+                toast("Touche « Autorisations » → « Agenda » → « Autoriser »")
+                openAuraAppDetails()
+            }
+        }
+
+    // Branché sur le cycle de vie pour ne pas toucher à onCreate/onStart/onStop ci-dessus.
+    // ON_CREATE arrive après MainActivity.onCreate : prefs est alors initialisé.
+    init {
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onCreate(owner: LifecycleOwner) {
+                state.showBattery = prefs.showBattery
+                state.showNextEvent = prefs.showNextEvent
+                deviceInfo = DeviceInfoWatcher(
+                    context = this@MainActivity,
+                    onBattery = { state.battery = it },
+                    onTick = { refreshNextEvent() },
+                )
+            }
+
+            override fun onStart(owner: LifecycleOwner) {
+                deviceInfo?.start()
+            }
+
+            override fun onResume(owner: LifecycleOwner) {
+                // L'autorisation a pu être accordée ou retirée dans les réglages d'Android.
+                state.hasCalendarAccess = CalendarReader.hasPermission(this@MainActivity)
+                startCalendarObserver()
+                refreshNextEvent()
+            }
+
+            override fun onStop(owner: LifecycleOwner) {
+                deviceInfo?.stop()
+                stopCalendarObserver?.invoke()
+                stopCalendarObserver = null
+            }
+        })
+    }
+
+    private fun startCalendarObserver() {
+        if (stopCalendarObserver != null || !state.showNextEvent) return
+        stopCalendarObserver = CalendarReader.observe(this) { refreshNextEvent() }
+    }
+
+    private fun refreshNextEvent() {
+        if (!state.showNextEvent || !state.hasCalendarAccess) {
+            state.nextEvent = null
+            return
+        }
+        calendarJob?.cancel()
+        calendarJob = lifecycleScope.launch {
+            state.nextEvent = CalendarReader.nextEvent(this@MainActivity)
+        }
+    }
+
+    override fun setShowBattery(show: Boolean) {
+        state.showBattery = show
+        prefs.showBattery = show
+    }
+
+    override fun setShowNextEvent(show: Boolean) {
+        if (!show) {
+            state.showNextEvent = false
+            prefs.showNextEvent = false
+            stopCalendarObserver?.invoke()
+            stopCalendarObserver = null
+            state.nextEvent = null
+            return
+        }
+        if (CalendarReader.hasPermission(this)) {
+            state.hasCalendarAccess = true
+            state.showNextEvent = true
+            prefs.showNextEvent = true
+            startCalendarObserver()
+            refreshNextEvent()
+        } else {
+            calendarPermissionRequest.launch(Manifest.permission.READ_CALENDAR)
+        }
+    }
+
+    override fun openEvent(event: NextEvent) {
+        try {
+            startActivity(CalendarReader.viewIntent(event).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (e: Exception) {
+            openCalendar()
+        }
+    }
 }

@@ -47,6 +47,15 @@ class Prefs(context: Context) {
             editor.apply()
         }
 
+    // --- Sous l'heure : batterie + agenda ---
+    var showBattery: Boolean
+        get() = sp.getBoolean("status_battery", true)
+        set(value) = sp.edit().putBoolean("status_battery", value).apply()
+
+    var showNextEvent: Boolean
+        get() = sp.getBoolean("status_next_event", false)
+        set(value) = sp.edit().putBoolean("status_next_event", value).apply()
+
     private companion object {
         const val KEY_FAVORITES = "favorites"
         const val KEY_HIDDEN = "hidden"

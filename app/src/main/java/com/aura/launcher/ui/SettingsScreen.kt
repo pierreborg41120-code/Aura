@@ -139,6 +139,24 @@ fun SettingsScreen(state: LauncherState, actions: LauncherActions) {
             }
         }
 
+        // --- Sous l'heure : batterie + agenda ---
+        Spacer(Modifier.height(28.dp))
+        SectionTitle("Sous l'heure")
+        ToggleRow("Batterie", state.showBattery, actions::setShowBattery)
+        ToggleRow(
+            "Prochain rendez-vous",
+            state.showNextEvent && state.hasCalendarAccess,
+            actions::setShowNextEvent,
+        )
+        Text(
+            "Affiche le prochain évènement des 24 heures à venir. Aura lit ton agenda sur le téléphone, " +
+                "rien n'est envoyé ailleurs.",
+            color = AuraColors.TextFaint,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+
         Spacer(Modifier.height(36.dp))
         Text(
             "Aura ${BuildConfig.VERSION_NAME} · gratuit, sans pub, sans pistage",

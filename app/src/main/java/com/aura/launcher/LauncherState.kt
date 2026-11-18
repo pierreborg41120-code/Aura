@@ -46,6 +46,13 @@ class LauncherState {
     // --- Raccourcis d'app ---
     /** Panneau de raccourcis ouvert depuis l'accueil (null = fermé). */
     var shortcutPanel by mutableStateOf<ShortcutPanel?>(null)
+
+    // --- Sous l'heure : batterie + agenda ---
+    var showBattery by mutableStateOf(true)
+    var showNextEvent by mutableStateOf(false)
+    var hasCalendarAccess by mutableStateOf(false)
+    var battery by mutableStateOf<BatteryInfo?>(null)
+    var nextEvent by mutableStateOf<NextEvent?>(null)
 }
 
 /** Ce que l'interface peut demander à l'activité. */
@@ -86,4 +93,9 @@ interface LauncherActions {
     fun launchShortcut(shortcut: AppShortcut)
     /** À appeler hors du thread principal. */
     fun loadShortcutIcon(shortcut: AppShortcut, sizePx: Int): ImageBitmap?
+
+    // --- Sous l'heure : batterie + agenda ---
+    fun setShowBattery(show: Boolean)
+    fun setShowNextEvent(show: Boolean)
+    fun openEvent(event: NextEvent)
 }
