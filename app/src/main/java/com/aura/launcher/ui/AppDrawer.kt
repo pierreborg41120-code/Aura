@@ -100,6 +100,10 @@ private data class ContactHits(val query: String, val list: List<ContactResult>)
 /** Pause après la dernière lettre tapée avant d'interroger les contacts. */
 private const val CONTACTS_DEBOUNCE_MS = 120L
 
+/** Avec la recherche de contacts : lettres minimales et pause avant le lancement automatique d'une app. */
+private const val AUTO_LAUNCH_MIN_WITH_CONTACTS = 3
+private const val AUTO_LAUNCH_PAUSE_WITH_CONTACTS_MS = 700L
+
 /** Score minimal pour qu'une app soit suggérée (environ un lancement récent). */
 private const val SUGGESTION_MIN_SCORE = 0.5
 
@@ -138,6 +142,12 @@ fun AppDrawer(state: LauncherState, actions: LauncherActions) {
     val othersShown = contacts.isNotEmpty() || calc != null
     LaunchedEffect(results, query, contactsReady, othersShown) {
         if (state.autoLaunch && query.length >= 2 && results.size == 1 && contactsReady && !othersShown) {
+            if (contactsOn) {
+                // Recherche de contacts active : on laisse le temps de taper un nom. Au moins 3 lettres,
+                // puis une courte pause sans frappe (l'effet est annulé à chaque nouvelle lettre).
+                if (AppEntry.normalize(contactQuery).length < AUTO_LAUNCH_MIN_WITH_CONTACTS) return@LaunchedEffect
+                delay(AUTO_LAUNCH_PAUSE_WITH_CONTACTS_MS)
+            }
             focusManager.clearFocus()
             actions.launch(results.first())
         }

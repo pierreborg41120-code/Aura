@@ -105,11 +105,11 @@ Ne pas le changer, sinon l'utilisateur devra désinstaller Aura et perdra ses fa
 | Carte de l'app (glisser un favori : notifications + widget + raccourcis) | ✅ testé, widget Tesla OK (boutons fonctionnels) ; il était écrasé → hauteur revue + réglable, **à revérifier** |
 | Mini-lecteur : transition liquide (shader AGSL, ui/LiquidTransition.kt) | ✅ testé, « vraiment top » |
 | Mini-lecteur sans fond (posé sur le fond d'écran, bouton lecture en anneau) | ⏳ à tester |
-| Recherche universelle : apps, contacts (READ_CONTACTS), calcul, réglages Android, web (search/, ui/SearchSections.kt) | ⏳ à tester |
-| Tri par utilisation dans chaque lettre + apps suggérées (UsageTracker.kt, compteur local) | ⏳ à tester |
-| Lire / répondre / effacer les notifications dans la carte de l'app (ui/NotificationList.kt) | ⏳ à tester |
-| Météo Open-Meteo, désactivée par défaut, position approximative ou ville (Weather*.kt, ui/WeatherSheet.kt) | ⏳ à tester |
-| Widget libre sur l'accueil, apps musique aux écouteurs, rotation, haptique (ui/HomeWidget*.kt, HeadphonesWatcher.kt) | ⏳ à tester |
+| Recherche universelle : apps, contacts (READ_CONTACTS), calcul, réglages Android, web (search/, ui/SearchSections.kt) | ✅ testé ; lancement auto trop rapide avec les contacts → 3 lettres + pause 700 ms, **à revérifier** |
+| Tri par utilisation dans chaque lettre + apps suggérées (UsageTracker.kt, compteur local) | ✅ testé, OK |
+| Lire / répondre / effacer les notifications dans la carte de l'app (ui/NotificationList.kt) | ✅ testé, OK |
+| Météo Open-Meteo, désactivée par défaut, position approximative ou ville (Weather*.kt, ui/WeatherSheet.kt) | ✅ testé, OK |
+| Widget libre sur l'accueil, apps musique aux écouteurs, rotation, haptique (ui/HomeWidget*.kt, HeadphonesWatcher.kt) | ✅ testé, OK |
 | Finitions de design « éclipse » (tokens dans Theme.kt, ombres de texte, A–Z en loupe) | ⏳ à tester |
 
 Si notifications ou lecteur ne marchent toujours pas : demander une capture du bloc **Diagnostic**
