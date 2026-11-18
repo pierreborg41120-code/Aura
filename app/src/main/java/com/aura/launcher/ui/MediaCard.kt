@@ -99,8 +99,8 @@ import kotlin.math.max
 import kotlin.math.sin
 
 // --- Lecteur ---
-// Mini-lecteur d'Aura : une carte sombre translucide, teintée par la pochette, avec un halo
-// coloré qui déborde doucement sur le fond d'écran. Au changement de morceau, la nouvelle
+// Mini-lecteur d'Aura : sans carte ni fond, posé directement sur le fond d'écran (pochette,
+// titre, boutons, temps), avec des ombres douces pour rester lisible sur un fond clair. Au changement de morceau, la nouvelle
 // pochette se révèle par-dessus l'ancienne à travers une « éclipse » liquide : un disque au bord
 // légèrement ondulé qui grandit depuis le côté du saut. Le texte s'enchaîne en fondu avec un
 // petit glissement, rien ne rebondit. Tout est dessiné à la main : aucune bibliothèque d'icônes.
@@ -179,39 +179,11 @@ fun MediaCard(media: MediaInfo, actions: LauncherActions, textScale: Float) {
         animationSpec = tween(if (reduceMotion) 0 else AccentMs, easing = Standard),
         label = "accent",
     )
-    val shape = RoundedCornerShape(28.dp)
 
     Box(
         Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
-            // Halo : un ovale de couleur qui s'estompe autour de la carte.
-            .drawBehind {
-                val center = Offset(size.width / 2f, size.height / 2f)
-                val radius = size.height * 0.95f
-                scale(scaleX = size.width / size.height * 0.62f, scaleY = 1f, pivot = center) {
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(accent.copy(alpha = 0.34f), accent.copy(alpha = 0.10f), Color.Transparent),
-                            center = center,
-                            radius = radius,
-                        ),
-                        radius = radius,
-                        center = center,
-                    )
-                }
-            }
-            .clip(shape)
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        lerp(CardBase, accent, 0.30f).copy(alpha = 0.82f),
-                        CardBase.copy(alpha = 0.72f),
-                    ),
-                ),
-            )
-            .border(1.dp, Color.White.copy(alpha = 0.07f), shape)
-            .padding(start = 12.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+            .padding(vertical = 8.dp),
     ) {
         Column {
             TrackInfo(
@@ -339,6 +311,7 @@ private fun TrackInfo(
                         color = AuraColors.Text,
                         fontSize = (17 * textScale).sp,
                         fontWeight = FontWeight.SemiBold,
+                        style = TextStyle().onWallpaper(),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -348,6 +321,7 @@ private fun TrackInfo(
                             text = track.artist,
                             color = AuraColors.TextDim,
                             fontSize = (14 * textScale).sp,
+                            style = TextStyle().onWallpaper(),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -533,8 +507,8 @@ private fun Controls(isPlaying: Boolean, actions: LauncherActions, reduceMotion:
         RoundButton("Morceau précédent", 44.dp, null, actions::mediaPrevious, glow = !reduceMotion) {
             Canvas(Modifier.size(15.dp)) { drawPrevious(AuraColors.Text) }
         }
-        RoundButton(if (isPlaying) "Pause" else "Lecture", 48.dp, AuraColors.Text, actions::mediaPlayPause) {
-            Canvas(Modifier.size(17.dp)) { drawPlayPause(morph, CardBase) }
+        RoundButton(if (isPlaying) "Pause" else "Lecture", 48.dp, null, actions::mediaPlayPause, glow = !reduceMotion, ring = true) {
+            Canvas(Modifier.size(17.dp)) { drawPlayPause(morph, AuraColors.Text) }
         }
         RoundButton("Morceau suivant", 44.dp, null, actions::mediaNext, glow = !reduceMotion) {
             Canvas(Modifier.size(15.dp)) { drawNext(AuraColors.Text) }
@@ -549,6 +523,7 @@ private fun RoundButton(
     fill: Color?,
     onClick: () -> Unit,
     glow: Boolean = false,
+    ring: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     // Disque clair qui apparaît derrière l'icône au toucher puis s'efface (remplace l'ondulation).
@@ -586,6 +561,19 @@ private fun RoundButton(
             .size(size)
             .clip(CircleShape)
             .then(if (fill != null) Modifier.background(fill) else Modifier)
+            .then(
+                if (ring) {
+                    // Anneau fin, avec un contour sombre très léger pour rester visible sur un fond clair.
+                    Modifier.drawBehind {
+                        val stroke = 1.5.dp.toPx()
+                        val r = this.size.minDimension / 2f - stroke
+                        drawCircle(Color.Black.copy(alpha = 0.18f), radius = r, style = Stroke(width = stroke * 2.5f))
+                        drawCircle(AuraColors.Text, radius = r, style = Stroke(width = stroke))
+                    }
+                } else {
+                    Modifier
+                },
+            )
             .then(click)
             .semantics { contentDescription = label },
     ) { content() }
@@ -670,7 +658,7 @@ private fun Progress(
             val h = thickness.toPx()
             val top = (size.height - h) / 2f
             val radius = CornerRadius(h / 2f)
-            drawRoundRect(Color.White.copy(alpha = 0.16f), Offset(0f, top), Size(size.width, h), radius)
+            drawRoundRect(Color.White.copy(alpha = 0.28f), Offset(0f, top), Size(size.width, h), radius)
             val w = (size.width * fraction.coerceIn(0f, 1f)).coerceAtLeast(h)
             drawRoundRect(fill, Offset(0f, top), Size(w, h), radius)
             if (scrub != null) {
@@ -689,10 +677,10 @@ private fun Progress(
 private fun TimeText(text: String, textScale: Float) {
     Text(
         text = text,
-        color = AuraColors.TextFaint,
+        color = AuraColors.TextDim,
         fontSize = (11 * textScale).sp,
         // Chiffres à largeur fixe : le temps ne « danse » pas en défilant.
-        style = TextStyle(fontFeatureSettings = "tnum"),
+        style = TextStyle(fontFeatureSettings = "tnum").onWallpaper(),
         maxLines = 1,
     )
 }
