@@ -42,6 +42,10 @@ class LauncherState {
         }
 
     fun notificationsFor(app: AppEntry): NotificationInfo? = notifications[app.notificationKey]
+
+    // --- Raccourcis d'app ---
+    /** Panneau de raccourcis ouvert depuis l'accueil (null = fermé). */
+    var shortcutPanel by mutableStateOf<ShortcutPanel?>(null)
 }
 
 /** Ce que l'interface peut demander à l'activité. */
@@ -75,4 +79,11 @@ interface LauncherActions {
     fun mediaPrevious()
     fun mediaOpen()
     fun loadIcon(app: AppEntry, sizePx: Int): ImageBitmap?
+
+    // --- Raccourcis d'app ---
+    /** Raccourcis de l'app (liste vide si indisponibles). À appeler hors du thread principal. */
+    fun loadShortcuts(app: AppEntry): List<AppShortcut>
+    fun launchShortcut(shortcut: AppShortcut)
+    /** À appeler hors du thread principal. */
+    fun loadShortcutIcon(shortcut: AppShortcut, sizePx: Int): ImageBitmap?
 }

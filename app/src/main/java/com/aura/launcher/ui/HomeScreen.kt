@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aura.launcher.LauncherActions
 import com.aura.launcher.LauncherState
+import com.aura.launcher.ShortcutPanel
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -92,6 +93,8 @@ fun HomeScreen(state: LauncherState, actions: LauncherActions) {
                     verticalPadding = 9.dp,
                     badge = notif != null,
                     subtitle = if (state.showNotificationPreviews) notif?.preview else null,
+                    // --- Raccourcis d'app --- glisser vers la droite ouvre le panneau des raccourcis.
+                    modifier = rememberShortcutSwipe(app, actions) { state.shortcutPanel = ShortcutPanel(app, it) },
                     menu = buildList {
                         if (index > 0) add(MenuAction("Monter") { actions.moveFavorite(app, -1) })
                         if (index < favorites.lastIndex) add(MenuAction("Descendre") { actions.moveFavorite(app, +1) })
