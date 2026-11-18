@@ -95,8 +95,8 @@ Ne pas le changer, sinon l'utilisateur devra désinstaller Aura et perdra ses fa
 | Double-toucher pour verrouiller | ✅ testé, OK |
 | Renommer une app | ✅ testé, OK |
 | Taille du texte | ✅ testé, OK |
-| Points de notification + aperçu sous les favoris | ⚠️ ne marchait pas tant que l'accès était bloqué ; accès débloqué depuis, **à revérifier** |
-| Mini-lecteur de musique | ⚠️ même cause, **à revérifier** (le bloc Diagnostic des réglages aide) |
+| Points de notification + aperçu sous les favoris | ✅ testé, OK (après « Autoriser les paramètres restreints ») |
+| Mini-lecteur de musique | ✅ testé, OK |
 | Assistant de configuration (v0.1.4) | ✅ utilisé avec succès par l'utilisateur |
 
 Si notifications ou lecteur ne marchent toujours pas : demander une capture du bloc **Diagnostic**
