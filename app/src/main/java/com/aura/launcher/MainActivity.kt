@@ -2,19 +2,23 @@ package com.aura.launcher
 
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.LauncherApps
 import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.AlarmClock
 import android.provider.Settings
+import android.service.notification.NotificationListenerService
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.lifecycleScope
 import com.aura.launcher.ui.AuraTheme
 import com.aura.launcher.ui.LauncherScreen
@@ -24,8 +28,16 @@ class MainActivity : ComponentActivity(), LauncherActions {
 
     private lateinit var repo: AppRepository
     private lateinit var prefs: Prefs
+    private lateinit var media: MediaWatcher
     private val state = LauncherState()
     private var stopObserving: (() -> Unit)? = null
+
+    /** Apps telles que lues sur le système, avant renommage. */
+    private var rawApps: List<AppEntry> = emptyList()
+    private var customLabels: Map<String, String> = emptyMap()
+
+    /** Vrai quand on part vers les réglages d'Android depuis ceux d'Aura : on les rouvrira au retour. */
+    private var keepSettingsOpen = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
@@ -36,18 +48,42 @@ class MainActivity : ComponentActivity(), LauncherActions {
 
         repo = AppRepository(this)
         prefs = Prefs(this)
+        media = MediaWatcher(this) { state.media = it }
+
         state.favorites = prefs.favorites
         state.hidden = prefs.hidden
         state.showIcons = prefs.showIcons
         state.autoLaunch = prefs.autoLaunch
+        state.showNotificationPreviews = prefs.showNotificationPreviews
+        state.textScale = prefs.textScale
+        customLabels = prefs.customLabels
 
         refreshApps()
         stopObserving = repo.observeChanges { refreshApps() }
+
+        lifecycleScope.launch {
+            NotificationStore.byApp.collect { state.notifications = it }
+        }
 
         setContent {
             AuraTheme {
                 LauncherScreen(state = state, actions = this)
             }
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        refreshPermissions()
+        if (state.hasNotificationAccess) {
+            // Après une mise à jour de l'APK, Android oublie parfois de relancer le service.
+            if (!NotificationStore.connected.value) {
+                try {
+                    NotificationListenerService.requestRebind(ComponentName(this, NotificationService::class.java))
+                } catch (e: Exception) {
+                }
+            }
+            media.start()
         }
     }
 
@@ -65,28 +101,59 @@ class MainActivity : ComponentActivity(), LauncherActions {
     /** En revenant d'une app, on retrouve l'accueil propre (liste fermée, recherche vidée). */
     override fun onStop() {
         super.onStop()
-        resetToHome()
+        media.stop()
+        if (keepSettingsOpen) {
+            keepSettingsOpen = false
+            state.drawerOpen = false
+        } else {
+            resetToHome()
+        }
     }
 
     private fun resetToHome() {
         state.drawerOpen = false
         state.settingsOpen = false
+        state.renaming = null
         state.query = ""
     }
 
+    private fun refreshPermissions() {
+        state.hasNotificationAccess =
+            NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
+        val enabledServices = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        ).orEmpty()
+        val lockComponent = ComponentName(this, LockService::class.java)
+        state.hasLockAccess = enabledServices.split(':').any {
+            ComponentName.unflattenFromString(it) == lockComponent
+        }
+    }
+
     private fun refreshApps() {
-        lifecycleScope.launch { state.apps = repo.loadApps() }
+        lifecycleScope.launch {
+            rawApps = repo.loadApps()
+            applyLabels()
+        }
+    }
+
+    private fun applyLabels() {
+        state.apps = AppEntry.sort(
+            rawApps.map { app -> customLabels[app.key]?.let { app.copy(label = it) } ?: app },
+        )
     }
 
     private fun tryStart(intent: Intent, errorMessage: String = "Aucune application ne gère cette action") {
         try {
             startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         } catch (e: ActivityNotFoundException) {
-            Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show()
+            toast(errorMessage)
         } catch (e: SecurityException) {
-            Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show()
+            toast(errorMessage)
         }
     }
+
+    private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
 
     // --- LauncherActions ---
 
@@ -95,7 +162,7 @@ class MainActivity : ComponentActivity(), LauncherActions {
             getSystemService(LauncherApps::class.java)
                 .startMainActivity(app.component, app.user, null, null)
         } catch (e: Exception) {
-            Toast.makeText(this, "Impossible d'ouvrir ${app.label}", Toast.LENGTH_SHORT).show()
+            toast("Impossible d'ouvrir ${app.label}")
             refreshApps()
         }
     }
@@ -139,6 +206,17 @@ class MainActivity : ComponentActivity(), LauncherActions {
         prefs.hidden = state.hidden
     }
 
+    override fun rename(app: AppEntry, newLabel: String) {
+        val label = newLabel.trim()
+        customLabels = if (label.isEmpty() || label == app.originalLabel) {
+            customLabels - app.key
+        } else {
+            customLabels + (app.key to label)
+        }
+        prefs.customLabels = customLabels
+        applyLabels()
+    }
+
     override fun setShowIcons(show: Boolean) {
         state.showIcons = show
         prefs.showIcons = show
@@ -147,6 +225,16 @@ class MainActivity : ComponentActivity(), LauncherActions {
     override fun setAutoLaunch(enabled: Boolean) {
         state.autoLaunch = enabled
         prefs.autoLaunch = enabled
+    }
+
+    override fun setShowNotificationPreviews(show: Boolean) {
+        state.showNotificationPreviews = show
+        prefs.showNotificationPreviews = show
+    }
+
+    override fun setTextScale(scale: Float) {
+        state.textScale = scale
+        prefs.textScale = scale
     }
 
     override fun openAlarms() = tryStart(Intent(AlarmClock.ACTION_SHOW_ALARMS))
@@ -166,10 +254,55 @@ class MainActivity : ComponentActivity(), LauncherActions {
         }
     }
 
+    override fun lockScreen() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            toast("Le verrouillage nécessite Android 9 ou plus récent")
+            return
+        }
+        if (!LockService.lockScreen()) {
+            toast("Active « Double-toucher pour verrouiller » dans les réglages d'Aura")
+        }
+    }
+
     override fun openWallpaperPicker() =
         tryStart(Intent.createChooser(Intent(Intent.ACTION_SET_WALLPAPER), "Fond d'écran"))
 
     override fun openDefaultLauncherSettings() = tryStart(Intent(Settings.ACTION_HOME_SETTINGS))
+
+    override fun openNotificationAccessSettings() {
+        keepSettingsOpen = true
+        val component = ComponentName(this, NotificationService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                startActivity(
+                    Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+                        .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, component.flattenToString())
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+                return
+            } catch (e: Exception) {
+                // Certains constructeurs n'ont pas l'écran de détail : on ouvre la liste.
+            }
+        }
+        tryStart(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+    }
+
+    override fun openLockAccessSettings() {
+        keepSettingsOpen = true
+        tryStart(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+    }
+
+    override fun mediaPlayPause() = media.playPause()
+
+    override fun mediaNext() = media.next()
+
+    override fun mediaPrevious() = media.previous()
+
+    override fun mediaOpen() {
+        if (media.openPlayer()) return
+        val pkg = media.playerPackage ?: return
+        packageManager.getLaunchIntentForPackage(pkg)?.let { tryStart(it) }
+    }
 
     override fun loadIcon(app: AppEntry, sizePx: Int): ImageBitmap? = repo.loadIcon(app, sizePx)
 }

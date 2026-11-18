@@ -46,12 +46,66 @@ fun SettingsScreen(state: LauncherState, actions: LauncherActions) {
             actions::setAutoLaunch,
         )
 
+        ChoiceRow(
+            label = "Taille du texte",
+            options = listOf("Petit" to 0.85f, "Normal" to 1f, "Grand" to 1.15f),
+            selected = state.textScale,
+            onSelect = actions::setTextScale,
+        )
+
+        Spacer(Modifier.height(20.dp))
+        SectionTitle("Notifications et musique")
+        if (state.hasNotificationAccess) {
+            ToggleRow(
+                "Aperçu des notifications sous les favoris",
+                state.showNotificationPreviews,
+                actions::setShowNotificationPreviews,
+            )
+        } else {
+            PermissionRow(
+                title = "Activer l'accès aux notifications",
+                description = "Affiche un point sur les apps qui ont des notifications, un aperçu sous tes favoris " +
+                    "et un mini-lecteur quand de la musique joue. Rien ne quitte ton téléphone.",
+                onClick = actions::openNotificationAccessSettings,
+            )
+        }
+
+        Spacer(Modifier.height(20.dp))
+        SectionTitle("Gestes")
+        if (state.hasLockAccess) {
+            Text(
+                "Double-toucher l'accueil verrouille l'écran ✓",
+                color = AuraColors.TextDim,
+                fontSize = 15.sp,
+                modifier = Modifier.padding(vertical = 12.dp),
+            )
+        } else {
+            PermissionRow(
+                title = "Double-toucher pour verrouiller",
+                description = "Dans la page qui s'ouvre, choisis « Aura – verrouillage » et active-le. " +
+                    "Aura ne lit pas le contenu de ton écran.",
+                onClick = actions::openLockAccessSettings,
+            )
+        }
+
+        if (!state.hasNotificationAccess || !state.hasLockAccess) {
+            Text(
+                "Option grisée ou « paramètre restreint » ? Va dans Paramètres → Applications → Aura, " +
+                    "touche ⋮ en haut à droite, puis « Autoriser les paramètres restreints », et réessaie.",
+                color = AuraColors.TextFaint,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+            )
+        }
+
+        Spacer(Modifier.height(20.dp))
+        SectionTitle("Système")
         LinkRow("Changer le fond d'écran") { actions.openWallpaperPicker() }
         LinkRow("Choisir le launcher par défaut") { actions.openDefaultLauncherSettings() }
 
         Spacer(Modifier.height(28.dp))
-        Text("Apps masquées", color = AuraColors.Accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(8.dp))
+        SectionTitle("Apps masquées")
 
         val byKey = state.apps.associateBy { it.key }
         val hidden = state.hidden.mapNotNull { byKey[it] }.sortedBy { it.searchKey }
@@ -121,4 +175,54 @@ private fun LinkRow(label: String, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(vertical = 14.dp),
     )
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Text(
+        text,
+        color = AuraColors.Accent,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(bottom = 4.dp),
+    )
+}
+
+@Composable
+private fun PermissionRow(title: String, description: String, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+    ) {
+        Text(title, color = AuraColors.Text, fontSize = 17.sp)
+        Text(description, color = AuraColors.TextDim, fontSize = 14.sp, lineHeight = 19.sp)
+    }
+}
+
+@Composable
+private fun ChoiceRow(
+    label: String,
+    options: List<Pair<String, Float>>,
+    selected: Float,
+    onSelect: (Float) -> Unit,
+) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+        Text(label, color = AuraColors.Text, fontSize = 17.sp)
+        Row(Modifier.padding(top = 8.dp)) {
+            options.forEach { (name, value) ->
+                val isSelected = kotlin.math.abs(value - selected) < 0.01f
+                Text(
+                    name,
+                    color = if (isSelected) AuraColors.Accent else AuraColors.TextDim,
+                    fontSize = 16.sp,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    modifier = Modifier
+                        .clickable { onSelect(value) }
+                        .padding(end = 24.dp, top = 4.dp, bottom = 4.dp),
+                )
+            }
+        }
+    }
 }

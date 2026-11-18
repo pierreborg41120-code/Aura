@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Aura</string>
+    <string name="lock_service_label">Aura – verrouillage</string>
+    <string name="lock_service_description">Permet à Aura de verrouiller l\'écran quand tu touches deux fois l\'accueil. Aura ne lit pas le contenu de ton écran.</string>
 </resources>

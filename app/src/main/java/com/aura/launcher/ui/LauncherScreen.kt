@@ -21,6 +21,7 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
     // Le launcher est la racine : le bouton Retour ne doit jamais le « quitter ».
     BackHandler(enabled = true) {
         when {
+            state.renaming != null -> state.renaming = null
             state.settingsOpen -> state.settingsOpen = false
             state.drawerOpen -> state.drawerOpen = false
         }
@@ -52,6 +53,17 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
             exit = fadeOut(),
         ) {
             SettingsScreen(state, actions)
+        }
+
+        state.renaming?.let { app ->
+            RenameDialog(
+                app = app,
+                onDismiss = { state.renaming = null },
+                onRename = { label ->
+                    actions.rename(app, label)
+                    state.renaming = null
+                },
+            )
         }
     }
 }

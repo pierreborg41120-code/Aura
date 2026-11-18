@@ -2,14 +2,17 @@ package com.aura.launcher.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
@@ -37,7 +40,10 @@ import kotlinx.coroutines.withContext
 /** Une entrée de menu contextuel (appui long). */
 data class MenuAction(val label: String, val onClick: () -> Unit)
 
-/** Une ligne « icône + nom » cliquable, avec un menu sur appui long. */
+/**
+ * Une ligne « icône + nom » cliquable, avec un menu sur appui long.
+ * [badge] affiche un point (notifications en attente), [subtitle] une ligne d'aperçu sous le nom.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppRow(
@@ -49,6 +55,8 @@ fun AppRow(
     menu: List<MenuAction>,
     modifier: Modifier = Modifier,
     verticalPadding: Dp = 10.dp,
+    badge: Boolean = false,
+    subtitle: String? = null,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
@@ -71,13 +79,35 @@ fun AppRow(
                 AppIcon(app, actions, iconSize)
                 Spacer(Modifier.width(16.dp))
             }
-            Text(
-                text = app.label,
-                fontSize = fontSize,
-                color = AuraColors.Text,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Column(Modifier.weight(1f, fill = false)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = app.label,
+                        fontSize = fontSize,
+                        color = AuraColors.Text,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (badge) {
+                        Spacer(Modifier.width(8.dp))
+                        Box(
+                            Modifier
+                                .size(7.dp)
+                                .background(AuraColors.Accent, CircleShape),
+                        )
+                    }
+                }
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        fontSize = fontSize * 0.58f,
+                        color = AuraColors.TextDim,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
             menu.forEach { item ->

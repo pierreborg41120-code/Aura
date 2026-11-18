@@ -9,6 +9,14 @@ Un launcher Android minimaliste, gratuit, sans pub ni pistage.
 - **Glisser vers le bas sur l'accueil** : volet de notifications.
 - **Appui long dans le vide sur l'accueil** : réglages (icônes, fond d'écran, apps masquées…).
 - Toucher l'heure ouvre les alarmes, toucher la date ouvre l'agenda.
+- **Notifications** (après avoir donné l'accès dans les réglages d'Aura) : un point sur les apps concernées et un aperçu du dernier message sous chaque favori.
+- **Mini-lecteur** : titre, artiste et boutons précédent / lecture / suivant quand de la musique joue.
+- **Double-toucher l'accueil** : verrouille l'écran (service d'accessibilité à activer, Android 9+).
+- **Renommer** une app, **taille du texte** réglable.
+
+> Android 13+ : pour un APK installé à la main, l'accès aux notifications et le service d'accessibilité
+> peuvent être grisés (« paramètre restreint »). Va dans *Paramètres → Applications → Aura → ⋮ →
+> Autoriser les paramètres restreints*, puis réessaie.
 
 ## Installer sur ton téléphone
 

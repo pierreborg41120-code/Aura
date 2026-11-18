@@ -2,7 +2,7 @@ package com.aura.launcher
 
 import android.content.Context
 
-/** Préférences persistantes : favoris (dans l'ordre) et apps masquées. */
+/** Préférences persistantes. */
 class Prefs(context: Context) {
     private val sp = context.getSharedPreferences("aura", Context.MODE_PRIVATE)
 
@@ -22,11 +22,35 @@ class Prefs(context: Context) {
         get() = sp.getBoolean(KEY_AUTO_LAUNCH, true)
         set(value) = sp.edit().putBoolean(KEY_AUTO_LAUNCH, value).apply()
 
+    var showNotificationPreviews: Boolean
+        get() = sp.getBoolean(KEY_NOTIF_PREVIEWS, true)
+        set(value) = sp.edit().putBoolean(KEY_NOTIF_PREVIEWS, value).apply()
+
+    var textScale: Float
+        get() = sp.getFloat(KEY_TEXT_SCALE, 1f)
+        set(value) = sp.edit().putFloat(KEY_TEXT_SCALE, value).apply()
+
+    /** Noms personnalisés : clé de l'app → nom. */
+    var customLabels: Map<String, String>
+        get() = sp.all
+            .filterKeys { it.startsWith(LABEL_PREFIX) }
+            .mapNotNull { (k, v) -> (v as? String)?.let { k.removePrefix(LABEL_PREFIX) to it } }
+            .toMap()
+        set(value) {
+            val editor = sp.edit()
+            sp.all.keys.filter { it.startsWith(LABEL_PREFIX) }.forEach(editor::remove)
+            value.forEach { (k, v) -> editor.putString(LABEL_PREFIX + k, v) }
+            editor.apply()
+        }
+
     private companion object {
-        const val KEY_AUTO_LAUNCH = "auto_launch"
         const val KEY_FAVORITES = "favorites"
         const val KEY_HIDDEN = "hidden"
         const val KEY_ICONS = "show_icons"
+        const val KEY_AUTO_LAUNCH = "auto_launch"
+        const val KEY_NOTIF_PREVIEWS = "notif_previews"
+        const val KEY_TEXT_SCALE = "text_scale"
+        const val LABEL_PREFIX = "label:"
         const val SEP = "\n"
     }
 }

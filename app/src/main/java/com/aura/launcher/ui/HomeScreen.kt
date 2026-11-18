@@ -51,11 +51,14 @@ fun HomeScreen(state: LauncherState, actions: LauncherActions) {
                 onSwipeUp = { state.drawerOpen = true },
                 onSwipeDown = { actions.expandNotifications() },
             )
-            // Appui long dans le vide : réglages.
-            .pointerInputLongPress {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                state.settingsOpen = true
-            }
+            // Appui long dans le vide : réglages. Double-toucher : verrouiller l'écran.
+            .pointerInputTaps(
+                onLongPress = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    state.settingsOpen = true
+                },
+                onDoubleTap = { actions.lockScreen() },
+            )
             .systemBarsPadding()
             .padding(horizontal = 28.dp),
     ) {
@@ -63,6 +66,11 @@ fun HomeScreen(state: LauncherState, actions: LauncherActions) {
         Clock(actions)
 
         Spacer(Modifier.weight(1f))
+
+        state.media?.let { media ->
+            MediaCard(media, actions, state.textScale)
+            Spacer(Modifier.height(20.dp))
+        }
 
         val favorites = state.favoriteApps
         if (favorites.isEmpty()) {
@@ -74,17 +82,21 @@ fun HomeScreen(state: LauncherState, actions: LauncherActions) {
             )
         } else {
             favorites.forEachIndexed { index, app ->
+                val notif = state.notificationsFor(app)
                 AppRow(
                     app = app,
                     actions = actions,
                     showIcon = state.showIcons,
-                    iconSize = 30.dp,
-                    fontSize = 24.sp,
+                    iconSize = (30 * state.textScale).dp,
+                    fontSize = (24 * state.textScale).sp,
                     verticalPadding = 9.dp,
+                    badge = notif != null,
+                    subtitle = if (state.showNotificationPreviews) notif?.preview else null,
                     menu = buildList {
                         if (index > 0) add(MenuAction("Monter") { actions.moveFavorite(app, -1) })
                         if (index < favorites.lastIndex) add(MenuAction("Descendre") { actions.moveFavorite(app, +1) })
                         add(MenuAction("Retirer de l'accueil") { actions.toggleFavorite(app) })
+                        add(MenuAction("Renommer") { state.renaming = app })
                         add(MenuAction("Infos de l'app") { actions.openAppInfo(app) })
                         add(MenuAction("Désinstaller") { actions.uninstall(app) })
                     },
@@ -175,8 +187,11 @@ private fun Modifier.pointerInputVerticalSwipe(
     },
 )
 
-private fun Modifier.pointerInputLongPress(onLongPress: () -> Unit): Modifier = this.then(
-    Modifier.pointerInput("longpress") {
-        detectTapGestures(onLongPress = { onLongPress() })
+private fun Modifier.pointerInputTaps(onLongPress: () -> Unit, onDoubleTap: () -> Unit): Modifier = this.then(
+    Modifier.pointerInput("taps") {
+        detectTapGestures(
+            onLongPress = { onLongPress() },
+            onDoubleTap = { onDoubleTap() },
+        )
     },
 )

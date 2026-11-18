@@ -14,7 +14,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.text.Collator
 
 /** Liste les apps installées et prévient quand elle change. */
 class AppRepository(private val context: Context) {
@@ -24,8 +23,8 @@ class AppRepository(private val context: Context) {
     private val iconCache = LruCache<String, ImageBitmap>(300)
     private val myPackage = context.packageName
 
+    /** Apps installées, non triées (le tri se fait après application des renommages). */
     suspend fun loadApps(): List<AppEntry> = withContext(Dispatchers.IO) {
-        val collator = Collator.getInstance().apply { strength = Collator.PRIMARY }
         val me = Process.myUserHandle()
         userManager.userProfiles.flatMap { user ->
             val serial = userManager.getSerialNumberForUser(user)
@@ -37,12 +36,12 @@ class AppRepository(private val context: Context) {
                         label = info.label.toString().trim(),
                         component = info.componentName,
                         user = user,
+                        userSerial = serial,
                         isWorkProfile = user != me,
                     )
                 }
         }
             .distinctBy { it.key }
-            .sortedWith { a, b -> collator.compare(a.searchKey, b.searchKey) }
     }
 
     /** Charge (et met en cache) l'icône d'une app. À appeler hors du thread principal. */

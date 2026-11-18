@@ -177,8 +177,9 @@ private fun SearchResults(state: LauncherState, actions: LauncherActions, result
                 app = app,
                 actions = actions,
                 showIcon = state.showIcons,
-                iconSize = 34.dp,
-                fontSize = 19.sp,
+                iconSize = (34 * state.textScale).dp,
+                fontSize = (19 * state.textScale).sp,
+                badge = state.notificationsFor(app) != null,
                 menu = drawerMenu(state, actions, app),
             )
         }
@@ -189,6 +190,7 @@ private fun drawerMenu(state: LauncherState, actions: LauncherActions, app: AppE
     MenuAction(if (app.key in state.favorites) "Retirer de l'accueil" else "Épingler à l'accueil") {
         actions.toggleFavorite(app)
     },
+    MenuAction("Renommer") { state.renaming = app },
     MenuAction("Masquer") { actions.setHidden(app.key, true) },
     MenuAction("Infos de l'app") { actions.openAppInfo(app) },
     MenuAction("Désinstaller") { actions.uninstall(app) },
@@ -265,8 +267,9 @@ private fun AlphabeticalList(state: LauncherState, actions: LauncherActions, app
                         app = item.app,
                         actions = actions,
                         showIcon = state.showIcons,
-                        iconSize = 34.dp,
-                        fontSize = 19.sp,
+                        iconSize = (34 * state.textScale).dp,
+                        fontSize = (19 * state.textScale).sp,
+                        badge = state.notificationsFor(item.app) != null,
                         menu = drawerMenu(state, actions, item.app),
                     )
                 }
