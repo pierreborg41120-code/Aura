@@ -30,6 +30,10 @@ class Prefs(context: Context) {
         get() = sp.getFloat(KEY_TEXT_SCALE, 1f)
         set(value) = sp.edit().putFloat(KEY_TEXT_SCALE, value).apply()
 
+    var onboardingDone: Boolean
+        get() = sp.getBoolean(KEY_ONBOARDING_DONE, false)
+        set(value) = sp.edit().putBoolean(KEY_ONBOARDING_DONE, value).apply()
+
     /** Noms personnalisés : clé de l'app → nom. */
     var customLabels: Map<String, String>
         get() = sp.all
@@ -50,6 +54,7 @@ class Prefs(context: Context) {
         const val KEY_AUTO_LAUNCH = "auto_launch"
         const val KEY_NOTIF_PREVIEWS = "notif_previews"
         const val KEY_TEXT_SCALE = "text_scale"
+        const val KEY_ONBOARDING_DONE = "onboarding_done"
         const val LABEL_PREFIX = "label:"
         const val SEP = "\n"
     }

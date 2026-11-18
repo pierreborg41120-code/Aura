@@ -22,6 +22,7 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
     BackHandler(enabled = true) {
         when {
             state.renaming != null -> state.renaming = null
+            state.onboardingOpen -> actions.finishOnboarding()
             state.settingsOpen -> state.settingsOpen = false
             state.drawerOpen -> state.drawerOpen = false
         }
@@ -53,6 +54,14 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
             exit = fadeOut(),
         ) {
             SettingsScreen(state, actions)
+        }
+
+        AnimatedVisibility(
+            visible = state.onboardingOpen,
+            enter = fadeIn(),
+            exit = fadeOut(),
+        ) {
+            OnboardingScreen(state, actions)
         }
 
         state.renaming?.let { app ->

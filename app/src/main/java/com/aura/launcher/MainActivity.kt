@@ -1,6 +1,7 @@
 package com.aura.launcher
 
 import android.annotation.SuppressLint
+import android.app.role.RoleManager
 import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
@@ -17,6 +18,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.lifecycleScope
@@ -35,6 +37,13 @@ class MainActivity : ComponentActivity(), LauncherActions {
     /** Apps telles que lues sur le système, avant renommage. */
     private var rawApps: List<AppEntry> = emptyList()
     private var customLabels: Map<String, String> = emptyMap()
+
+    /** Fenêtre système « Définir Aura comme écran d'accueil ». */
+    private val homeRoleRequest =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            refreshPermissions()
+            if (!state.isDefaultHome) openDefaultLauncherSettings()
+        }
 
     /** Vrai quand on part vers les réglages d'Android depuis ceux d'Aura : on les rouvrira au retour. */
     private var keepSettingsOpen = false
@@ -57,6 +66,7 @@ class MainActivity : ComponentActivity(), LauncherActions {
         state.showNotificationPreviews = prefs.showNotificationPreviews
         state.textScale = prefs.textScale
         customLabels = prefs.customLabels
+        state.onboardingOpen = !prefs.onboardingDone
 
         refreshApps()
         stopObserving = repo.observeChanges { refreshApps() }
@@ -128,6 +138,7 @@ class MainActivity : ComponentActivity(), LauncherActions {
     }
 
     private fun refreshPermissions() {
+        state.isDefaultHome = isDefaultHome()
         state.hasNotificationAccess =
             NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
         val enabledServices = Settings.Secure.getString(
@@ -138,6 +149,17 @@ class MainActivity : ComponentActivity(), LauncherActions {
         state.hasLockAccess = enabledServices.split(':').any {
             ComponentName.unflattenFromString(it) == lockComponent
         }
+    }
+
+    private fun isDefaultHome(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roles = getSystemService(RoleManager::class.java)
+            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_HOME)) {
+                return roles.isRoleHeld(RoleManager.ROLE_HOME)
+            }
+        }
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        return packageManager.resolveActivity(home, 0)?.activityInfo?.packageName == packageName
     }
 
     private fun refreshApps() {
@@ -309,6 +331,38 @@ class MainActivity : ComponentActivity(), LauncherActions {
         media.start()
         state.mediaSessionsAllowed = media.sessionsAllowed
         toast("Service relancé")
+    }
+
+    override fun requestDefaultHome() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roles = getSystemService(RoleManager::class.java)
+            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_HOME) &&
+                !roles.isRoleHeld(RoleManager.ROLE_HOME)
+            ) {
+                try {
+                    homeRoleRequest.launch(roles.createRequestRoleIntent(RoleManager.ROLE_HOME))
+                    return
+                } catch (e: Exception) {
+                    // Pas de fenêtre système : on ouvre la page des réglages.
+                }
+            }
+        }
+        openDefaultLauncherSettings()
+    }
+
+    override fun openAuraAppDetails() {
+        keepSettingsOpen = true
+        tryStart(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+    }
+
+    override fun openOnboarding() {
+        state.settingsOpen = false
+        state.onboardingOpen = true
+    }
+
+    override fun finishOnboarding() {
+        state.onboardingOpen = false
+        prefs.onboardingDone = true
     }
 
     override fun mediaPlayPause() = media.playPause()

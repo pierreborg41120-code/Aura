@@ -104,6 +104,7 @@ fun SettingsScreen(state: LauncherState, actions: LauncherActions) {
 
         Spacer(Modifier.height(20.dp))
         SectionTitle("Système")
+        LinkRow("Assistant de configuration") { actions.openOnboarding() }
         LinkRow("Changer le fond d'écran") { actions.openWallpaperPicker() }
         LinkRow("Choisir le launcher par défaut") { actions.openDefaultLauncherSettings() }
 
