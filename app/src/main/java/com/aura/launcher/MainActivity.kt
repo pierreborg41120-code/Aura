@@ -395,6 +395,9 @@ class MainActivity : ComponentActivity(), LauncherActions {
 
     override fun mediaPrevious() = media.previous()
 
+    // --- Lecteur ---
+    override fun mediaSeek(positionMs: Long) = media.seekTo(positionMs)
+
     override fun mediaOpen() {
         if (media.openPlayer()) return
         val pkg = media.playerPackage ?: return

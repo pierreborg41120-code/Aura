@@ -92,6 +92,9 @@ interface LauncherActions {
     fun mediaNext()
     fun mediaPrevious()
     fun mediaOpen()
+    // --- Lecteur ---
+    /** Se déplace dans le morceau en cours (si l'app de musique l'accepte). */
+    fun mediaSeek(positionMs: Long)
     fun loadIcon(app: AppEntry, sizePx: Int): ImageBitmap?
 
     // --- Raccourcis d'app ---
