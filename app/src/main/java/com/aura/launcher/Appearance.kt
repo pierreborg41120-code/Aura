@@ -34,6 +34,9 @@ enum class ThemeId {
 /** Police de l'accueil et du tiroir (les réglages gardent la police du système). */
 enum class FontChoice { SYSTEM, MANROPE, INSTRUMENT_SERIF, SPACE_MONO, CHAKRA_PETCH }
 
+/** --- Icônes --- origine : icônes des apps ; THEME : fabriquées aux couleurs du thème ; PACK : pack installé. */
+enum class IconStyle { ORIGINAL, THEME, PACK }
+
 /** Voile posé sur le fond d'écran. LIGHT = le voile d'avant ce lot (défaut). */
 enum class VeilLevel { NONE, LIGHT, MEDIUM, STRONG }
 
@@ -54,6 +57,9 @@ data class Appearance(
     /** Flou du fond d'écran à l'ouverture du tiroir (Android 12+). */
     val blurDrawer: Boolean = false,
     val alignment: HomeAlignment = HomeAlignment.START,
+    val iconStyle: IconStyle = IconStyle.ORIGINAL,
+    /** Paquet du pack d'icônes (utilisé si iconStyle = PACK). */
+    val iconPack: String = "",
 )
 
 /** Préréglage appliqué quand on choisit un thème (les autres réglages sont conservés). */
@@ -64,6 +70,7 @@ fun Appearance.withTheme(theme: ThemeId): Appearance = when (theme) {
         font = if (font == FontChoice.CHAKRA_PETCH) FontChoice.SYSTEM else font,
         accent = ACCENT_AUTO,
         veil = VeilLevel.LIGHT,
+        iconStyle = if (iconStyle == IconStyle.THEME) IconStyle.ORIGINAL else iconStyle,
     )
     ThemeId.NEON -> copy(
         theme = theme,
@@ -71,5 +78,7 @@ fun Appearance.withTheme(theme: ThemeId): Appearance = when (theme) {
         font = FontChoice.CHAKRA_PETCH,
         accent = ACCENT_AUTO,
         veil = VeilLevel.MEDIUM,
+        // Un pack choisi par l'utilisateur est gardé ; sinon, icônes du thème.
+        iconStyle = if (iconStyle == IconStyle.PACK) iconStyle else IconStyle.THEME,
     )
 }

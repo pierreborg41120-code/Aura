@@ -1,5 +1,11 @@
 package com.aura.launcher.ui
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.produceState
+import com.aura.launcher.IconPackInfo
+import com.aura.launcher.IconStyle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.lerp
@@ -93,8 +99,13 @@ fun AppearanceEditor(state: LauncherState, actions: LauncherActions) {
     }
 
     // L'entrée et la sortie du panneau sont animées par LauncherScreen.
+    // --- Icônes --- packs installés, lus une fois à l'ouverture de l'éditeur.
+    val iconPacks by produceState(emptyList<IconPackInfo>()) {
+        value = withContext(Dispatchers.IO) { actions.loadIconPacks() }
+    }
     EditorPanel(
         state = state,
+        iconPacks = iconPacks,
         reduced = reduced,
         onChange = { actions.previewAppearance(it) },
         onDone = { actions.saveAppearance() },
@@ -136,11 +147,13 @@ private enum class EditorTab(val label: String) {
     COLOR("Couleur"),
     BACKGROUND("Fond"),
     ALIGNMENT("Alignement"),
+    ICONS("Icônes"),
 }
 
 @Composable
 private fun EditorPanel(
     state: LauncherState,
+    iconPacks: List<IconPackInfo>,
     reduced: Boolean,
     onChange: (Appearance) -> Unit,
     onDone: () -> Unit,
@@ -238,6 +251,9 @@ private fun EditorPanel(
                         onBlur = { onChange(appearance.copy(blurDrawer = it)) },
                     )
                     EditorTab.ALIGNMENT -> AlignmentTab(appearance, reduced) { onChange(appearance.copy(alignment = it)) }
+                    EditorTab.ICONS -> IconsTab(appearance, iconPacks, reduced) { style, pack ->
+                        onChange(appearance.copy(iconStyle = style, iconPack = pack))
+                    }
                 }
             }
         }
@@ -400,6 +416,89 @@ private fun ThemeTab(appearance: Appearance, reduced: Boolean, onSelect: (ThemeI
         style = AuraType.caption,
         modifier = Modifier.padding(horizontal = AuraSpace.xl, vertical = AuraSpace.m),
     )
+}
+
+/**
+ * --- Icônes --- origine, icônes du thème, ou un pack installé. Le changement se voit tout de suite
+ * sur les favoris au-dessus (si les icônes sont affichées et l'alignement n'est pas centré).
+ */
+@Composable
+private fun IconsTab(
+    appearance: Appearance,
+    packs: List<IconPackInfo>,
+    reduced: Boolean,
+    onSelect: (IconStyle, String) -> Unit,
+) {
+    OptionsRow {
+        val origin = appearance.iconStyle == IconStyle.ORIGINAL ||
+            (appearance.iconStyle == IconStyle.PACK && packs.none { it.packageName == appearance.iconPack })
+        OptionCard(origin, reduced, onClick = { onSelect(IconStyle.ORIGINAL, "") }, modifier = Modifier.width(132.dp)) {
+            Column {
+                IconSampleRow(themed = false)
+                Spacer(Modifier.height(AuraSpace.s))
+                OptionName("Origine", origin)
+            }
+        }
+        val themed = appearance.iconStyle == IconStyle.THEME
+        OptionCard(themed, reduced, onClick = { onSelect(IconStyle.THEME, "") }, modifier = Modifier.width(132.dp)) {
+            Column {
+                IconSampleRow(themed = true)
+                Spacer(Modifier.height(AuraSpace.s))
+                OptionName("Thème", themed)
+            }
+        }
+        packs.forEach { pack ->
+            val selected = appearance.iconStyle == IconStyle.PACK && appearance.iconPack == pack.packageName
+            OptionCard(selected, reduced, onClick = { onSelect(IconStyle.PACK, pack.packageName) }, modifier = Modifier.width(132.dp)) {
+                Column {
+                    Box(Modifier.height(40.dp), contentAlignment = Alignment.CenterStart) {
+                        Text("Pack", color = AuraColors.TextFaint, style = AuraType.caption)
+                    }
+                    Spacer(Modifier.height(AuraSpace.s))
+                    Text(
+                        pack.label,
+                        color = if (selected) AuraColors.AccentLight else AuraColors.TextDim,
+                        style = AuraType.label,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+    Text(
+        if (packs.isEmpty()) "« Thème » dessine les icônes aux couleurs du thème. Pour un pack d'icônes, " +
+            "installe-en un depuis le Play Store (cherche « icon pack », compatible Nova) : il apparaîtra ici."
+        else "« Thème » dessine les icônes aux couleurs du thème. Les apps absentes d'un pack gardent leur icône.",
+        color = AuraColors.TextFaint,
+        style = AuraType.caption,
+        modifier = Modifier.padding(horizontal = AuraSpace.xl, vertical = AuraSpace.m),
+    )
+}
+
+/** Trois petites icônes d'exemple : pastilles colorées (origine) ou cadres du thème (thème). */
+@Composable
+private fun IconSampleRow(themed: Boolean) {
+    val samples = listOf(Color(0xFF4CAF50), Color(0xFF2196F3), Color(0xFFFF7043))
+    Row(Modifier.height(40.dp), horizontalArrangement = Arrangement.spacedBy(AuraSpace.xs), verticalAlignment = Alignment.CenterVertically) {
+        samples.forEach { c ->
+            if (themed) {
+                val shape = auraShape(AuraRadius.s)
+                Box(
+                    Modifier
+                        .size(28.dp)
+                        .clip(shape)
+                        .background(AuraColors.Surface)
+                        .border(1.dp, AuraColors.Secondary.copy(alpha = 0.75f), shape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(Modifier.size(10.dp).clip(CircleShape).background(AuraColors.Accent))
+                }
+            } else {
+                Box(Modifier.size(28.dp).clip(CircleShape).background(c))
+            }
+        }
+    }
 }
 
 @Composable

@@ -111,7 +111,8 @@ Ne pas le changer, sinon l'utilisateur devra désinstaller Aura et perdra ses fa
 | Météo Open-Meteo, désactivée par défaut, position approximative ou ville (Weather*.kt, ui/WeatherSheet.kt) | ✅ testé, OK |
 | Widget libre sur l'accueil, apps musique aux écouteurs, rotation, haptique (ui/HomeWidget*.kt, HeadphonesWatcher.kt) | ✅ testé, OK |
 | Finitions de design « éclipse » (tokens dans Theme.kt, ombres de texte, A–Z en loupe) | ⏳ à tester |
-| Thème Néon (onglet Thème de l'éditeur) | ⏳ à tester |
+| Thème Néon (onglet Thème de l'éditeur) | ✅ premier retour « pas mal » |
+| Icônes : « Thème » (ThemedIcons.kt : silhouette monochrome Android 13 / calque adaptatif / silhouette calculée, dans un cadre du thème) et packs installés (IconPacks.kt, appfilter.xml) — onglet Icônes | ⏳ à tester |
 | Éditeur « Apparence » : horloges (ui/ClockStyles.kt), polices (res/font), accent Auto/palette, voile, flou du tiroir, alignement (ui/AppearanceEditor.kt, ui/WallpaperLook.kt, Appearance.kt) | ✅ premier retour « vraiment pas mal » ; **flou incertain** (fenêtre rendue translucide au 1er flou via setTranslucent) |
 
 Si notifications ou lecteur ne marchent toujours pas : demander une capture du bloc **Diagnostic**
@@ -131,7 +132,8 @@ Onglet « Thème » de l'éditeur Apparence. `ThemeId` + préréglage `Appearanc
 `auraShape()`, lignes de balayage via `Modifier.themeBackdrop()`. Premier thème : **Néon** (jaune #FCEE0A,
 cyan #00E5FF, police Chakra Petch, horloge NEON avec glitch de 180 ms au changement de minute). Thème original,
 « dans l'ambiance » cyberpunk demandée par l'utilisateur : ne jamais reprendre nom, logo ou personnages
-d'une œuvre existante (Cyberpunk Edgerunners…). Ajouter un thème = un ThemeSpec + une ligne dans ThemeTab.
+d'une œuvre existante (Cyberpunk Edgerunners…). Ajouter un thème = un ThemeSpec + une ligne dans ThemeTab. Icônes : `IconLook` (clé de cache) construit par
+`rememberIconLook()` ; les apps absentes d'un pack gardent leur icône (iconback/iconmask des packs pas gérés).
 
 ## Pistes pour la suite (proposées, pas encore faites)
 

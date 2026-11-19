@@ -422,7 +422,9 @@ class MainActivity : ComponentActivity(), LauncherActions {
         packageManager.getLaunchIntentForPackage(pkg)?.let { tryStart(it) }
     }
 
-    override fun loadIcon(app: AppEntry, sizePx: Int): ImageBitmap? = repo.loadIcon(app, sizePx)
+    override fun loadIcon(app: AppEntry, sizePx: Int, look: IconLook): ImageBitmap? = repo.loadIcon(app, sizePx, look)
+
+    override fun loadIconPacks(): List<IconPackInfo> = repo.iconPacks.installed()
 
     // --- Raccourcis d'app ---
 

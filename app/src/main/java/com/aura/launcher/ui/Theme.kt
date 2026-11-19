@@ -31,6 +31,7 @@ import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.toArgb
 import com.aura.launcher.ThemeId
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -318,6 +319,25 @@ fun rememberReducedMotion(): Boolean {
         } catch (e: Exception) {
             false
         }
+    }
+}
+
+/** --- Icônes --- style d'icônes en cours, d'après l'apparence et le thème. */
+@Composable
+fun rememberIconLook(): com.aura.launcher.IconLook {
+    val a = LocalAppearance.current
+    return when (a.iconStyle) {
+        com.aura.launcher.IconStyle.ORIGINAL -> com.aura.launcher.IconLook.ORIGINAL
+        com.aura.launcher.IconStyle.PACK ->
+            if (a.iconPack.isBlank()) com.aura.launcher.IconLook.ORIGINAL
+            else com.aura.launcher.IconLook(com.aura.launcher.IconStyle.PACK, pack = a.iconPack)
+        com.aura.launcher.IconStyle.THEME -> com.aura.launcher.IconLook(
+            style = com.aura.launcher.IconStyle.THEME,
+            glyph = AuraColors.Accent.toArgb(),
+            line = AuraColors.Secondary.toArgb(),
+            frame = AuraColors.Surface.toArgb(),
+            cutCorners = AuraLook.spec.cutCorners,
+        )
     }
 }
 

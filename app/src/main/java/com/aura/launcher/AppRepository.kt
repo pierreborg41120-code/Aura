@@ -44,9 +44,17 @@ class AppRepository(private val context: Context) {
             .distinctBy { it.key }
     }
 
-    /** Charge (et met en cache) l'icône d'une app. À appeler hors du thread principal. */
-    fun loadIcon(app: AppEntry, sizePx: Int): ImageBitmap? {
-        iconCache.get(app.key)?.let { return it }
+    /** --- Icônes --- packs d'icônes installés. */
+    val iconPacks = IconPacks(context)
+
+    /**
+     * Charge (et met en cache) l'icône d'une app, dans le style [look] (origine, thème ou pack).
+     * À appeler hors du thread principal.
+     */
+    fun loadIcon(app: AppEntry, sizePx: Int, look: IconLook = IconLook.ORIGINAL): ImageBitmap? {
+        // La clé commence par la clé de l'app (« paquet/… ») : l'effacement par paquet continue de marcher.
+        val cacheKey = "${app.key}@${look.token}@$sizePx"
+        iconCache.get(cacheKey)?.let { return it }
         return try {
             val info = launcherApps.resolveActivity(
                 android.content.Intent(android.content.Intent.ACTION_MAIN)
@@ -54,19 +62,36 @@ class AppRepository(private val context: Context) {
                     .setComponent(app.component),
                 app.user,
             ) ?: return null
-            val drawable = info.getBadgedIcon(0)
-            val bitmap = drawable.toBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).asImageBitmap()
-            iconCache.put(app.key, bitmap)
-            bitmap
+            val bitmap: Bitmap = when (look.style) {
+                IconStyle.ORIGINAL -> info.getBadgedIcon(0).toBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+                IconStyle.THEME -> badged(renderThemedIcon(info.getIcon(0), sizePx, look), app, sizePx)
+                IconStyle.PACK -> {
+                    // App absente du pack : on garde son icône d'origine.
+                    val fromPack = iconPacks.iconFor(look.pack, app.component)
+                    if (fromPack == null) info.getBadgedIcon(0).toBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+                    else badged(fromPack.toBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888), app, sizePx)
+                }
+            }
+            val image = bitmap.asImageBitmap()
+            iconCache.put(cacheKey, image)
+            image
         } catch (e: Exception) {
             null
         }
+    }
+
+    /** Ajoute la petite mallette des apps du profil professionnel. */
+    private fun badged(bitmap: Bitmap, app: AppEntry, sizePx: Int): Bitmap {
+        if (!app.isWorkProfile) return bitmap
+        val drawable = android.graphics.drawable.BitmapDrawable(context.resources, bitmap)
+        return context.packageManager.getUserBadgedIcon(drawable, app.user).toBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
     }
 
     /** Appelle [onChange] à chaque installation, mise à jour ou suppression d'app. */
     fun observeChanges(onChange: () -> Unit): () -> Unit {
         val callback = object : LauncherApps.Callback() {
             private fun changed(packageName: String?) {
+                packageName?.let { iconPacks.forget(it) }
                 packageName?.let { pkg -> iconCache.snapshot().keys.filter { it.startsWith("$pkg/") }.forEach(iconCache::remove) }
                 onChange()
             }

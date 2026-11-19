@@ -167,8 +167,10 @@ fun AppRow(
 @Composable
 fun AppIcon(app: AppEntry, actions: LauncherActions, size: Dp) {
     val sizePx = with(LocalDensity.current) { size.roundToPx() }
-    val icon by produceState<ImageBitmap?>(initialValue = null, app.key, sizePx) {
-        value = withContext(Dispatchers.IO) { actions.loadIcon(app, sizePx) }
+    // --- Icônes --- style choisi (origine, thème, pack) : en changer recharge l'icône.
+    val look = rememberIconLook()
+    val icon by produceState<ImageBitmap?>(initialValue = null, app.key, sizePx, look) {
+        value = withContext(Dispatchers.IO) { actions.loadIcon(app, sizePx, look) }
     }
     Box(Modifier.size(size)) {
         icon?.let { Image(bitmap = it, contentDescription = null, modifier = Modifier.size(size)) }

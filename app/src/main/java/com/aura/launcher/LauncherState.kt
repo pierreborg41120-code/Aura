@@ -152,7 +152,10 @@ interface LauncherActions {
     // --- Lecteur ---
     /** Se déplace dans le morceau en cours (si l'app de musique l'accepte). */
     fun mediaSeek(positionMs: Long)
-    fun loadIcon(app: AppEntry, sizePx: Int): ImageBitmap?
+    /** Icône de l'app dans le style [look] (origine, thème, pack). À appeler hors du thread principal. */
+    fun loadIcon(app: AppEntry, sizePx: Int, look: IconLook = IconLook.ORIGINAL): ImageBitmap?
+    /** --- Icônes --- packs d'icônes installés. À appeler hors du thread principal. */
+    fun loadIconPacks(): List<IconPackInfo>
 
     // --- Raccourcis d'app ---
     /** Raccourcis de l'app (liste vide si indisponibles). À appeler hors du thread principal. */
