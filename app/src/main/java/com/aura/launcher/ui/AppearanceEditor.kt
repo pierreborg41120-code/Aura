@@ -452,7 +452,17 @@ private fun IconsTab(
             OptionCard(selected, reduced, onClick = { onSelect(IconStyle.PACK, pack.packageName) }, modifier = Modifier.width(132.dp)) {
                 Column {
                     Box(Modifier.height(40.dp), contentAlignment = Alignment.CenterStart) {
-                        Text("Pack", color = AuraColors.TextFaint, style = AuraType.caption)
+                        // Logo du pack (son icône d'app) ; à défaut, le mot « Pack ».
+                        val logo = pack.icon
+                        if (logo != null) {
+                            androidx.compose.foundation.Image(
+                                bitmap = logo,
+                                contentDescription = null,
+                                modifier = Modifier.size(40.dp),
+                            )
+                        } else {
+                            Text("Pack", color = AuraColors.TextFaint, style = AuraType.caption)
+                        }
                     }
                     Spacer(Modifier.height(AuraSpace.s))
                     Text(
