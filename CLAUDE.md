@@ -42,7 +42,7 @@ app/src/main/java/com/aura/launcher/
     SettingsScreen.kt     Réglages + bloc Diagnostic (notifications / média)
     OnboardingScreen.kt   Assistant au premier lancement (écran d'accueil, accès notifications, verrouillage)
     RenameDialog.kt, Theme.kt
-app/src/main/res/xml/lock_service.xml   Config du service d'accessibilité
+app/src/main/res/xml/lock_service.xml   Config du service d'accessibilité (verrouillage + limiteur en durée)
 app/aura-debug.keystore                 Clé de signature versionnée (voir plus bas)
 .github/workflows/build.yml             CI : compile l'APK release et publie une Release sur main
 ```
@@ -114,10 +114,11 @@ Ne pas le changer, sinon l'utilisateur devra désinstaller Aura et perdra ses fa
 | Thème Néon (onglet Thème de l'éditeur) | ✅ testé, OK |
 | Dossiers sur l'accueil (Folders.kt, ui/Folders.kt ; clé « folder:<id> » dans les favoris) | ✅ testé, OK |
 | Sauvegarde / restauration des réglages en JSON (Prefs.exportJson/importJson, ui/settings/BackupSettings.kt ; sans widgets ni cache météo) | ✅ testé, OK (import compris) |
-| Récap des notifications sous l'heure + feuille groupée par app (ui/NotificationRecap.kt, réglage dans NotificationSettings) | ⏳ à tester |
-| Thèmes Terminal et Aube (TerminalSpec / AubeSpec, `squareCorners`, préréglages dans withTheme) | ⏳ à tester |
-| Limiteur : « Limiter » dans le menu d'appui long, pause de 5 s (ui/LimiterPause.kt), compte du jour (UsageTracker, fichier aura_usage_daily), liste dans les réglages | ⏳ à tester |
-| Gestes personnalisables : bas, gauche, droite, double-toucher (Gestures.kt, ui/settings/GestureSettings.kt, performGesture) | ⏳ à tester |
+| Récap des notifications sous l'heure + feuille groupée par app (ui/NotificationRecap.kt, réglage dans NotificationSettings) | ✅ testé, OK |
+| Thèmes Terminal et Aube (TerminalSpec / AubeSpec, `squareCorners`, préréglages dans withTheme) | ✅ testé, OK |
+| Limiteur : « Limiter » dans le menu d'appui long, pause de 5 s (ui/LimiterPause.kt), compte du jour (UsageTracker, fichier aura_usage_daily), liste dans les réglages | ✅ testé, OK (pause) |
+| Limiteur en durée par jour : « Limiter… » (pause / 5 min–2 h), LockService suit l'app au premier plan (TYPE_WINDOW_STATE_CHANGED, paquet seulement), ScreenTime.kt compte, GLOBAL_ACTION_HOME + écran « Temps écoulé » / « Encore 5 minutes » | ⏳ à tester |
+| Gestes personnalisables : bas, gauche, droite, double-toucher (Gestures.kt, ui/settings/GestureSettings.kt, performGesture) | ✅ testé, OK |
 | Icônes : « Thème » (ThemedIcons.kt : silhouette monochrome Android 13 / calque adaptatif / silhouette calculée, dans un cadre du thème) et packs installés (IconPacks.kt, appfilter.xml, logo du pack dans sa carte) — onglet Icônes | ✅ testé, « tout fonctionne nickel » |
 | Éditeur « Apparence » : horloges (ui/ClockStyles.kt), polices (res/font), accent Auto/palette, voile, flou du tiroir, alignement (ui/AppearanceEditor.kt, ui/WallpaperLook.kt, Appearance.kt) | ✅ testé, OK (flou compris ; fenêtre rendue translucide au 1er flou via setTranslucent) |
 
