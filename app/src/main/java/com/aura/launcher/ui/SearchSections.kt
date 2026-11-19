@@ -68,7 +68,7 @@ fun SearchSectionHeader(text: String) {
             .fillMaxWidth()
             .padding(top = AuraSpace.xl, bottom = AuraSpace.xs),
     ) {
-        Text(text, color = AuraColors.TextDim, style = AuraType.letter)
+        Text(text, color = AuraColors.TextDim, style = AuraType.letter.homeFont())
         Spacer(Modifier.width(AuraSpace.m))
         Box(
             Modifier
@@ -311,7 +311,7 @@ fun SuggestedApps(
                     }
                     Text(
                         app.label,
-                        style = if (showIcon) AuraType.caption.scaled(textScale) else AuraType.bodySmall.scaled(textScale),
+                        style = (if (showIcon) AuraType.caption.scaled(textScale) else AuraType.bodySmall.scaled(textScale)).homeFont(),
                         color = if (showIcon) AuraColors.TextDim else AuraColors.Text,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

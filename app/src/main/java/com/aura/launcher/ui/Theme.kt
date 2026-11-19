@@ -53,7 +53,13 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
+import androidx.core.graphics.ColorUtils
+import com.aura.launcher.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -270,23 +276,94 @@ val LocalAppearance = staticCompositionLocalOf { Appearance() }
 /**
  * Accent à afficher. [accent] vaut ACCENT_AUTO ou un indice de palette ; [wallpaperColor] est la
  * couleur brute du fond d'écran (null si inconnue → lavande).
- * TODO(thème) : palette de 7 couleurs et couleur du fond d'écran retouchée pour rester lisible.
  */
-fun resolveAccent(accent: Int, wallpaperColor: Int?): Color = AuraColors.Lavender
+fun resolveAccent(accent: Int, wallpaperColor: Int?): Color {
+    if (accent in AccentPalette.indices) return AccentPalette[accent].second
+    return wallpaperAccent(wallpaperColor) ?: AuraColors.Lavender
+}
 
 /**
- * Famille de police de l'accueil et du tiroir (les réglages gardent celle du système).
- * TODO(thème) : Manrope, Instrument Serif, Space Mono depuis res/font.
+ * Couleur du fond d'écran retouchée pour servir de halo sur la nuit : on garde la teinte, on impose
+ * une saturation modérée et une clarté élevée (comme la lavande), puis on vérifie le contraste.
+ * Null si la couleur est inconnue ou quasi grise (la teinte n'aurait alors pas de sens).
  */
-fun fontFamilyFor(choice: FontChoice): FontFamily = FontFamily.SansSerif
+private fun wallpaperAccent(argb: Int?): Color? {
+    if (argb == null) return null
+    val r = android.graphics.Color.red(argb)
+    val g = android.graphics.Color.green(argb)
+    val b = android.graphics.Color.blue(argb)
+    // Écart entre la composante la plus forte et la plus faible : quasi nul pour un gris, un noir ou un blanc.
+    val chroma = (maxOf(r, g, b) - minOf(r, g, b)) / 255f
+    if (chroma < 0.08f) return null
+
+    val hsl = FloatArray(3)
+    ColorUtils.RGBToHSL(r, g, b, hsl)
+    // Saturation modérée : ni pastel délavé ni couleur criarde.
+    hsl[1] = hsl[1].coerceIn(0.45f, 0.75f)
+    // Clarté élevée, proche de celle de la lavande ; les bleus profonds sont éclaircis juste après.
+    hsl[2] = 0.74f
+    var color = ColorUtils.HSLToColor(hsl)
+    // Contraste minimal avec le fond nuit (la lavande est vers 8:1) : on éclaircit si besoin.
+    val night = AuraColors.Night.toArgb()
+    while (ColorUtils.calculateContrast(color, night) < 7.0 && hsl[2] < 0.9f) {
+        hsl[2] += 0.02f
+        color = ColorUtils.HSLToColor(hsl)
+    }
+    return Color(color)
+}
+
+/** Manrope (variable) : une instance par graisse utilisée dans Aura. */
+@OptIn(ExperimentalTextApi::class)
+private val Manrope = FontFamily(
+    listOf(FontWeight.ExtraLight, FontWeight.Light, FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold).map { w ->
+        Font(
+            R.font.manrope_variable,
+            weight = w,
+            variationSettings = FontVariation.Settings(FontVariation.weight(w.weight)),
+        )
+    },
+)
+
+/** Instrument Serif : une seule graisse (pas de faux gras, l'horloge fine reste élégante). */
+private val InstrumentSerif = FontFamily(Font(R.font.instrument_serif_regular, FontWeight.Normal))
+
+/** Space Mono : régulier et gras. */
+private val SpaceMono = FontFamily(
+    Font(R.font.space_mono_regular, FontWeight.Normal),
+    Font(R.font.space_mono_bold, FontWeight.Bold),
+)
+
+/** Famille de police de l'accueil et du tiroir (les réglages gardent celle du système). */
+fun fontFamilyFor(choice: FontChoice): FontFamily = when (choice) {
+    FontChoice.SYSTEM -> FontFamily.SansSerif
+    FontChoice.MANROPE -> Manrope
+    FontChoice.INSTRUMENT_SERIF -> InstrumentSerif
+    FontChoice.SPACE_MONO -> SpaceMono
+}
+
+/**
+ * Facteur de taille par police, pour que toutes paraissent à peu près de la même taille :
+ * Space Mono est large (chasse fixe), Instrument Serif a un petit œil.
+ */
+fun fontSizeFactor(choice: FontChoice): Float = when (choice) {
+    FontChoice.SYSTEM, FontChoice.MANROPE -> 1f
+    FontChoice.INSTRUMENT_SERIF -> 1.08f
+    FontChoice.SPACE_MONO -> 0.86f
+}
 
 /** Police choisie dans l'apparence, pour l'accueil et le tiroir. */
 @Composable
 fun auraHomeFont(): FontFamily = fontFamilyFor(LocalAppearance.current.font)
 
-/** Applique la police de l'apparence (accueil et tiroir seulement). */
+/**
+ * Applique la police de l'apparence (accueil et tiroir seulement), avec son facteur de taille
+ * ([fontSizeFactor] : 1 pour la police du système, donc rien ne change par défaut).
+ */
 @Composable
-fun TextStyle.homeFont(): TextStyle = copy(fontFamily = auraHomeFont())
+fun TextStyle.homeFont(): TextStyle {
+    val choice = LocalAppearance.current.font
+    return copy(fontFamily = fontFamilyFor(choice)).scaled(fontSizeFactor(choice))
+}
 
 /** Alignement horizontal correspondant (pour Column / Box). */
 fun HomeAlignment.horizontal(): Alignment.Horizontal = when (this) {
