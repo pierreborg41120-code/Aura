@@ -16,6 +16,19 @@ enum class ClockStyle {
     WORDS,
     /** Compacte : heure · date sur une seule ligne. */
     COMPACT,
+    /** Néon : chiffres anguleux, halo et crochets, petit glitch au changement de minute (thème Néon). */
+    NEON,
+}
+
+/**
+ * --- Thèmes --- habillage complet : couleurs des surfaces, formes, détails graphiques.
+ * Choisir un thème applique aussi un préréglage (police, horloge, accent, voile), modifiable ensuite.
+ */
+enum class ThemeId {
+    /** Le thème d'origine : nuit, lavande, coins arrondis. */
+    ECLIPSE,
+    /** Nuit urbaine, jaune électrique et cyan, coins coupés. */
+    NEON,
 }
 
 /** Police de l'accueil et du tiroir (les réglages gardent la police du système). */
