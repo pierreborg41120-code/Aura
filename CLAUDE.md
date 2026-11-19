@@ -102,18 +102,20 @@ Ne pas le changer, sinon l'utilisateur devra désinstaller Aura et perdra ses fa
 | Batterie + prochain rendez-vous sous l'heure (v0.1.9) | ✅ premier retour positif (« pas mal ») |
 | Raccourcis d'app : glisser un favori à droite, menu d'appui long (v0.1.9) | ✅ premier retour positif (« pas mal ») |
 | Nouvelle icône « éclipse » + calque monochrome (v0.1.9) | ✅ premier retour positif (« pas mal ») |
-| Carte de l'app (glisser un favori : notifications + widget + raccourcis) | ✅ testé, widget Tesla OK (boutons fonctionnels) ; il était écrasé → hauteur revue + réglable, **à revérifier** |
+| Carte de l'app (glisser un favori : notifications + widget + raccourcis) | ✅ testé, widget Tesla OK (boutons fonctionnels) ; il était écrasé → hauteur revue + réglable, revérifié ✅ |
 | Mini-lecteur : transition liquide (shader AGSL, ui/LiquidTransition.kt) | ✅ testé, « vraiment top » |
-| Mini-lecteur sans fond (posé sur le fond d'écran, bouton lecture en anneau) | ⏳ à tester |
-| Recherche universelle : apps, contacts (READ_CONTACTS), calcul, réglages Android, web (search/, ui/SearchSections.kt) | ✅ testé ; lancement auto trop rapide avec les contacts → 3 lettres + pause 700 ms, **à revérifier** |
+| Mini-lecteur sans fond (posé sur le fond d'écran, bouton lecture en anneau) | ✅ testé, OK |
+| Recherche universelle : apps, contacts (READ_CONTACTS), calcul, réglages Android, web (search/, ui/SearchSections.kt) | ✅ testé ; lancement auto trop rapide avec les contacts → 3 lettres + pause 700 ms, revérifié ✅ |
 | Tri par utilisation dans chaque lettre + apps suggérées (UsageTracker.kt, compteur local) | ✅ testé, OK |
 | Lire / répondre / effacer les notifications dans la carte de l'app (ui/NotificationList.kt) | ✅ testé, OK |
 | Météo Open-Meteo, désactivée par défaut, position approximative ou ville (Weather*.kt, ui/WeatherSheet.kt) | ✅ testé, OK |
 | Widget libre sur l'accueil, apps musique aux écouteurs, rotation, haptique (ui/HomeWidget*.kt, HeadphonesWatcher.kt) | ✅ testé, OK |
-| Finitions de design « éclipse » (tokens dans Theme.kt, ombres de texte, A–Z en loupe) | ⏳ à tester |
-| Thème Néon (onglet Thème de l'éditeur) | ✅ premier retour « pas mal » |
+| Finitions de design « éclipse » (tokens dans Theme.kt, ombres de texte, A–Z en loupe) | ✅ testé, OK |
+| Thème Néon (onglet Thème de l'éditeur) | ✅ testé, OK |
+| Dossiers sur l'accueil (Folders.kt, ui/Folders.kt ; clé « folder:<id> » dans les favoris) | ⏳ à tester |
+| Sauvegarde / restauration des réglages en JSON (Prefs.exportJson/importJson, ui/settings/BackupSettings.kt ; sans widgets ni cache météo) | ⏳ à tester |
 | Icônes : « Thème » (ThemedIcons.kt : silhouette monochrome Android 13 / calque adaptatif / silhouette calculée, dans un cadre du thème) et packs installés (IconPacks.kt, appfilter.xml, logo du pack dans sa carte) — onglet Icônes | ✅ testé, « tout fonctionne nickel » |
-| Éditeur « Apparence » : horloges (ui/ClockStyles.kt), polices (res/font), accent Auto/palette, voile, flou du tiroir, alignement (ui/AppearanceEditor.kt, ui/WallpaperLook.kt, Appearance.kt) | ✅ premier retour « vraiment pas mal » ; **flou incertain** (fenêtre rendue translucide au 1er flou via setTranslucent) |
+| Éditeur « Apparence » : horloges (ui/ClockStyles.kt), polices (res/font), accent Auto/palette, voile, flou du tiroir, alignement (ui/AppearanceEditor.kt, ui/WallpaperLook.kt, Appearance.kt) | ✅ testé, OK (flou compris ; fenêtre rendue translucide au 1er flou via setTranslucent) |
 
 Si notifications ou lecteur ne marchent toujours pas : demander une capture du bloc **Diagnostic**
 (Réglages d'Aura → « Notifications et musique ») ; chaque ligne ✓/✗ correspond à une étape.
@@ -137,7 +139,7 @@ d'une œuvre existante (Cyberpunk Edgerunners…). Ajouter un thème = un ThemeS
 
 ## Pistes pour la suite (proposées, pas encore faites)
 
-- Dossiers pop-up, récap des notifications, limiteur d'utilisation
+- Récap des notifications, limiteur d'utilisation
   (repérés dans les réglages de Niagara, laissés pour plus tard).
 - Réglages : chaque fonction a sa section dans `ui/settings/*.kt`, appelée par une ligne de SettingsScreen.kt.
 
