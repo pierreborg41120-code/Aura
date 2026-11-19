@@ -111,36 +111,21 @@ Ne pas le changer, sinon l'utilisateur devra désinstaller Aura et perdra ses fa
 | Météo Open-Meteo, désactivée par défaut, position approximative ou ville (Weather*.kt, ui/WeatherSheet.kt) | ✅ testé, OK |
 | Widget libre sur l'accueil, apps musique aux écouteurs, rotation, haptique (ui/HomeWidget*.kt, HeadphonesWatcher.kt) | ✅ testé, OK |
 | Finitions de design « éclipse » (tokens dans Theme.kt, ombres de texte, A–Z en loupe) | ⏳ à tester |
+| Éditeur « Apparence » : horloges (ui/ClockStyles.kt), polices (res/font), accent Auto/palette, voile, flou du tiroir, alignement (ui/AppearanceEditor.kt, ui/WallpaperLook.kt, Appearance.kt) | ⏳ à tester ; **flou incertain** (fenêtre rendue translucide au 1er flou via setTranslucent) |
 
 Si notifications ou lecteur ne marchent toujours pas : demander une capture du bloc **Diagnostic**
 (Réglages d'Aura → « Notifications et musique ») ; chaque ligne ✓/✗ correspond à une étape.
 
-## Prochain lot validé avec l'utilisateur (18/11/2026) : « Apparence » — à lancer
+## Lot « Apparence » (fait le 19/11/2026)
 
-Décisions prises via /interroge (ne pas les rediscuter) :
-- **Écran** : ligne « Apparence » dans les réglages → mode d'édition : le vrai accueil visible en haut (pas de
-  miniature : lire le fond d'écran exige une permission restreinte depuis Android 13), panneau à onglets en bas
-  (Horloge · Police · Couleur · Fond · Alignement), changements visibles en direct, « Terminé » enregistre,
-  Retour propose d'annuler.
-- **Accent** : « Auto » par défaut (WallpaperColors, couleur retouchée pour rester lisible) + palette de 7 couleurs.
-  Pas de roue chromatique.
-- **Horloge** : Fine (actuelle, défaut), Empilée (heures au-dessus des minutes), En toutes lettres
-  (« Vingt et une heures quarante-neuf »), Compacte (heure · date sur une ligne). 12/24 h suit le système.
-- **Police** : Système (défaut), Manrope, Instrument Serif, Space Mono — fichiers OFL embarqués dans res/font
-  (pas de bibliothèque). Accueil + tiroir uniquement, pas les réglages.
-- **Fond** : voile en 4 niveaux (Aucun, Léger = actuel par défaut, Moyen, Fort ~45 %) + flou du fond à l'ouverture
-  du tiroir (Android 12+), interrupteur désactivé par défaut.
-- **Alignement** : gauche (défaut) / centré / droite pour horloge, date, ligne de statut et favoris. Droite : icônes
-  à droite du nom. Centré : icônes masquées sur l'accueil. Lecteur, tiroir et widget inchangés.
-- Aucune permission ni dépendance en plus.
-
-Exécution prévue : l'orchestrateur pose d'abord le socle (modèle des réglages d'apparence + Prefs + lecture dans
-Theme.kt), puis 3 agents en parallèle (thème : accent/polices/voile/flou/alignement ; horloges ; éditeur), fusion,
-CI, une seule Release.
+Réglages → « Apparence » ouvre l'éditeur (accueil en aperçu en haut, panneau à onglets en bas, « Terminé »
+enregistre, Retour propose d'annuler). Modèle dans `Appearance.kt`, enregistré par `Prefs.appearance`, lu via
+`LocalAppearance` / `AuraAccent` dans Theme.kt (`AuraColors.Accent` est un getter sur un état Compose).
+`homeFont()` = police + facteur de taille, pour l'accueil et le tiroir seulement.
 
 ## Pistes pour la suite (proposées, pas encore faites)
 
-- Dossiers pop-up, styles d'horloge / polices / couleur d'accent, récap des notifications, limiteur d'utilisation
+- Dossiers pop-up, récap des notifications, limiteur d'utilisation
   (repérés dans les réglages de Niagara, laissés pour plus tard).
 - Réglages : chaque fonction a sa section dans `ui/settings/*.kt`, appelée par une ligne de SettingsScreen.kt.
 
