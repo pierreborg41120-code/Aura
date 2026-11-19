@@ -99,7 +99,7 @@ fun HomeWidgetPicker(state: LauncherState, actions: LauncherActions) {
     Column(
         Modifier
             .fillMaxSize()
-            .background(AuraColors.DrawerScrim)
+            .themeBackdrop()
             // Absorbe les touchers : rien ne doit atteindre l'accueil en dessous.
             .pointerInput(Unit) { detectTapGestures { } }
             .systemBarsPadding(),
@@ -162,7 +162,7 @@ private fun PickerItem(provider: WidgetProvider, actions: LauncherActions, previ
         Modifier
             .fillMaxWidth()
             .padding(horizontal = AuraSpace.l)
-            .clip(RoundedCornerShape(AuraRadius.l))
+            .clip(auraShape(AuraRadius.l))
             .clickable(role = Role.Button, onClickLabel = "Ajouter à l'accueil", onClick = onPick)
             .padding(horizontal = AuraSpace.m, vertical = AuraSpace.m),
     ) {
@@ -171,9 +171,9 @@ private fun PickerItem(provider: WidgetProvider, actions: LauncherActions, previ
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 88.dp)
-                .clip(RoundedCornerShape(AuraRadius.m))
+                .clip(auraShape(AuraRadius.m))
                 .background(AuraColors.Surface)
-                .border(1.dp, AuraColors.Hairline, RoundedCornerShape(AuraRadius.m))
+                .border(1.dp, AuraColors.Hairline, auraShape(AuraRadius.m))
                 .padding(AuraSpace.m),
         ) {
             preview?.let {
@@ -216,7 +216,7 @@ private fun PickerMessage(text: String) {
 /** Champ de recherche, même dessin que celui du tiroir (surface, filet, lavande au focus). */
 @Composable
 private fun PickerSearchField(value: String, onValueChange: (String) -> Unit) {
-    val shape = RoundedCornerShape(AuraRadius.m)
+    val shape = auraShape(AuraRadius.m)
     BasicTextField(
         value = value,
         onValueChange = onValueChange,

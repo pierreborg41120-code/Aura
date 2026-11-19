@@ -83,7 +83,7 @@ fun HomeWidget(state: LauncherState, actions: LauncherActions, area: HomeWidgetA
     var resizing by remember(id) { mutableStateOf(false) }
     var dragHeight by remember(id) { mutableStateOf<Float?>(null) }
     val shownHeight = dragHeight?.roundToInt() ?: height
-    val shape = RoundedCornerShape(AuraRadius.m)
+    val shape = auraShape(AuraRadius.m)
 
     BackHandler(enabled = resizing) { resizing = false }
 
@@ -221,7 +221,7 @@ fun HomeWidget(state: LauncherState, actions: LauncherActions, area: HomeWidgetA
                     color = AuraColors.Accent,
                     style = AuraType.label,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(AuraRadius.s))
+                        .clip(auraShape(AuraRadius.s))
                         .clickable(role = Role.Button) { resizing = false }
                         .padding(horizontal = AuraSpace.l, vertical = AuraSpace.m),
                 )

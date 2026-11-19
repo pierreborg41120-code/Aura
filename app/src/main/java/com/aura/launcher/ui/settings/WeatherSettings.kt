@@ -179,7 +179,7 @@ private fun CitySearch(actions: LauncherActions, onPicked: (WeatherPlace) -> Uni
         searching = false
     }
 
-    val shape = RoundedCornerShape(AuraRadius.m)
+    val shape = auraShape(AuraRadius.m)
     BasicTextField(
         value = query,
         onValueChange = {
@@ -260,7 +260,7 @@ private fun Pills(label: String, options: List<String>, selected: Int, onSelect:
         Row(horizontalArrangement = Arrangement.spacedBy(AuraSpace.s)) {
             options.forEachIndexed { index, name ->
                 val isSelected = index == selected
-                val shape = RoundedCornerShape(AuraRadius.s)
+                val shape = auraShape(AuraRadius.s)
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier

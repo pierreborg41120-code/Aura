@@ -1,5 +1,19 @@
 package com.aura.launcher.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import android.text.format.DateFormat
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.snap
@@ -26,12 +40,10 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.aura.launcher.ClockStyle
 import com.aura.launcher.HomeAlignment
 import com.aura.launcher.LauncherActions
@@ -176,6 +188,7 @@ fun AuraClock(style: ClockStyle, alignment: HomeAlignment, actions: LauncherActi
             }
 
             ClockStyle.COMPACT -> CompactClock(time, date, longDate, locale, alignment, reducedMotion, onAlarms, onCalendar)
+            ClockStyle.NEON -> NeonClock(time, longDate, locale, reducedMotion, onAlarms, onCalendar)
         }
     }
 }
@@ -229,6 +242,103 @@ private fun CompactClock(
 }
 
 /** Date sous l'horloge (Fine, Empilée, En toutes lettres) : toucher → agenda. */
+/**
+ * --- Thèmes --- horloge « Néon » : chiffres anguleux en blanc froid avec un halo de l'accent,
+ * un reflet cyan décalé, deux crochets aux coins, et la date en capitales espacées.
+ * Quand la minute change, petit glitch de ~180 ms (tranche décalée, reflets qui s'écartent) ;
+ * rien ne bouge le reste du temps, ni du tout si les animations sont coupées.
+ */
+@Composable
+private fun NeonClock(
+    time: String,
+    longDate: String,
+    locale: Locale,
+    reducedMotion: Boolean,
+    onAlarms: () -> Unit,
+    onCalendar: () -> Unit,
+) {
+    val glitch = remember { Animatable(0f) }
+    var shownTime by remember { mutableStateOf(time) }
+    LaunchedEffect(time) {
+        if (time == shownTime) return@LaunchedEffect
+        shownTime = time
+        if (!reducedMotion) {
+            glitch.snapTo(1f)
+            glitch.animateTo(0f, tween(180, easing = LinearEasing))
+        }
+    }
+
+    val accent = AuraColors.Accent
+    val style = AuraType.clock.copy(
+        fontWeight = FontWeight.Medium,
+        fontSize = 72.sp,
+        lineHeight = 80.sp,
+        letterSpacing = 0.sp,
+    ).homeFont()
+    val g = glitch.value
+
+    Box(
+        Modifier
+            .readAs(time, "Ouvrir les alarmes", onAlarms)
+            .noRippleClick(onAlarms)
+            .drawBehind { neonBrackets(accent) }
+            .padding(horizontal = AuraSpace.m, vertical = AuraSpace.xs),
+    ) {
+        // Reflet cyan, légèrement décalé à gauche ; il s'écarte pendant le glitch.
+        Text(
+            text = time,
+            color = NeonCyan.copy(alpha = 0.45f + 0.3f * g),
+            style = style,
+            modifier = Modifier.graphicsLayer { translationX = -(1.5f + 7f * g).dp.toPx() },
+        )
+        // Reflet de l'accent, visible seulement pendant le glitch.
+        if (g > 0f) {
+            Text(
+                text = time,
+                color = accent.copy(alpha = 0.6f * g),
+                style = style,
+                modifier = Modifier.graphicsLayer { translationX = (5f * g).dp.toPx() },
+            )
+        }
+        // Chiffres principaux, halo de l'accent ; pendant le glitch, la moitié basse glisse.
+        Text(
+            text = time,
+            color = AuraColors.Text,
+            style = style.copy(shadow = Shadow(accent.copy(alpha = 0.55f), Offset.Zero, 30f)),
+            modifier = Modifier.drawWithContent {
+                if (g <= 0f) {
+                    drawContent()
+                } else {
+                    val cut = size.height * 0.56f
+                    clipRect(bottom = cut) { this@drawWithContent.drawContent() }
+                    clipRect(top = cut) {
+                        translate(left = 9.dp.toPx() * g) { this@drawWithContent.drawContent() }
+                    }
+                }
+            },
+        )
+    }
+    Text(
+        text = "// " + longDate.uppercase(locale),
+        color = NeonCyan,
+        style = AuraType.status.copy(fontWeight = FontWeight.Medium, letterSpacing = 2.sp).onWallpaper().homeFont(),
+        modifier = Modifier
+            .padding(top = AuraSpace.s)
+            .noRippleClick(onCalendar),
+    )
+}
+
+/** Deux crochets en équerre, en haut à gauche et en bas à droite. */
+private fun DrawScope.neonBrackets(color: Color) {
+    val arm = 12.dp.toPx()
+    val w = 1.5.dp.toPx()
+    val c = color.copy(alpha = 0.9f)
+    drawLine(c, Offset(0f, 0f), Offset(arm, 0f), w)
+    drawLine(c, Offset(0f, 0f), Offset(0f, arm), w)
+    drawLine(c, Offset(size.width, size.height), Offset(size.width - arm, size.height), w)
+    drawLine(c, Offset(size.width, size.height), Offset(size.width, size.height - arm), w)
+}
+
 @Composable
 private fun ClockDate(text: String, onCalendar: () -> Unit, modifier: Modifier = Modifier.padding(top = AuraSpace.xxs)) {
     Text(

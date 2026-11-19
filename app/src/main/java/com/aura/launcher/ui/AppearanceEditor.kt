@@ -1,5 +1,11 @@
 package com.aura.launcher.ui
 
+import androidx.compose.foundation.shape.CutCornerShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.text.font.FontFamily
+import com.aura.launcher.ThemeId
+import com.aura.launcher.withTheme
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
@@ -29,7 +35,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Switch
@@ -125,6 +130,7 @@ fun AppearanceEditor(state: LauncherState, actions: LauncherActions) {
 
 /** Onglets de l'éditeur, dans l'ordre d'affichage. */
 private enum class EditorTab(val label: String) {
+    THEME("Thème"),
     CLOCK("Horloge"),
     FONT("Police"),
     COLOR("Couleur"),
@@ -140,12 +146,12 @@ private fun EditorPanel(
     onDone: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    var tab by rememberSaveable { mutableStateOf(EditorTab.CLOCK) }
+    var tab by rememberSaveable { mutableStateOf(EditorTab.THEME) }
     val appearance = state.appearance
     // Hauteur fixe (environ 40 % de l'écran) : l'accueil au-dessus ne saute pas d'un onglet à l'autre.
     val screenHeight = LocalConfiguration.current.screenHeightDp
     val panelHeight = (screenHeight * 0.40f).coerceIn(280f, 380f).dp
-    val shape = RoundedCornerShape(topStart = AuraRadius.xl, topEnd = AuraRadius.xl)
+    val shape = auraShape(topStart = AuraRadius.xl, topEnd = AuraRadius.xl)
 
     Column(
         Modifier
@@ -184,7 +190,7 @@ private fun EditorPanel(
                 modifier = Modifier
                     .heightIn(min = AuraSpace.touch)
                     .padding(vertical = AuraSpace.xs)
-                    .clip(RoundedCornerShape(AuraRadius.s))
+                    .clip(auraShape(AuraRadius.s))
                     .background(AuraColors.Accent)
                     .clickable(role = Role.Button, onClick = onDone)
                     .padding(horizontal = AuraSpace.l, vertical = AuraSpace.s),
@@ -220,6 +226,7 @@ private fun EditorPanel(
                     .padding(vertical = AuraSpace.l),
             ) {
                 when (current) {
+                    EditorTab.THEME -> ThemeTab(appearance, reduced) { onChange(appearance.withTheme(it)) }
                     EditorTab.CLOCK -> ClockTab(appearance, reduced) { onChange(appearance.copy(clock = it)) }
                     EditorTab.FONT -> FontTab(appearance, reduced) { onChange(appearance.copy(font = it)) }
                     EditorTab.COLOR -> ColorTab(appearance, state.wallpaperColor) { onChange(appearance.copy(accent = it)) }
@@ -284,7 +291,7 @@ private fun OptionCard(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    val shape = RoundedCornerShape(AuraRadius.m)
+    val shape = auraShape(AuraRadius.m)
     val border by animateColorAsState(
         if (selected) AuraColors.Accent else AuraColors.Hairline,
         colorSpec(reduced),
@@ -334,6 +341,67 @@ private fun OptionName(name: String, selected: Boolean) {
 
 // --- Onglet Horloge ---
 
+/**
+ * --- Thèmes --- choix de l'habillage. Chaque carte montre les couleurs du thème (fond, accent,
+ * détail) et ses formes ; la choisir applique aussi son préréglage (police, horloge, couleur, voile).
+ */
+@Composable
+private fun ThemeTab(appearance: Appearance, reduced: Boolean, onSelect: (ThemeId) -> Unit) {
+    val options = listOf(
+        ThemeId.ECLIPSE to "Éclipse",
+        ThemeId.NEON to "Néon",
+    )
+    OptionsRow {
+        options.forEach { (id, name) ->
+            val selected = appearance.theme == id
+            val spec = specFor(id)
+            val accent = spec.themeAccent ?: AuraColors.Lavender
+            val detail = spec.secondary ?: lerp(accent, Color.White, 0.55f)
+            OptionCard(selected, reduced, onClick = { onSelect(id) }, modifier = Modifier.width(150.dp)) {
+                Column {
+                    val previewShape = if (spec.cutCorners) CutCornerShape(8.dp) else RoundedCornerShape(14.dp)
+                    Box(
+                        Modifier
+                            .height(72.dp)
+                            .fillMaxWidth()
+                            .clip(previewShape)
+                            .background(spec.night)
+                            .border(1.dp, spec.hairline, previewShape)
+                            .padding(AuraSpace.s),
+                    ) {
+                        Column {
+                            Text(
+                                "21:49",
+                                color = spec.text,
+                                style = AuraType.body.copy(
+                                    fontFamily = if (id == ThemeId.NEON) fontFamilyFor(FontChoice.CHAKRA_PETCH) else FontFamily.SansSerif,
+                                    fontWeight = if (id == ThemeId.NEON) FontWeight.Medium else FontWeight.ExtraLight,
+                                    fontSize = 24.sp,
+                                    lineHeight = 28.sp,
+                                    shadow = if (id == ThemeId.NEON) androidx.compose.ui.graphics.Shadow(accent.copy(alpha = 0.6f), androidx.compose.ui.geometry.Offset.Zero, 14f) else null,
+                                ),
+                            )
+                            Spacer(Modifier.height(AuraSpace.xs))
+                            Row(horizontalArrangement = Arrangement.spacedBy(AuraSpace.xs)) {
+                                Box(Modifier.size(width = 28.dp, height = 6.dp).clip(previewShape).background(accent))
+                                Box(Modifier.size(width = 14.dp, height = 6.dp).clip(previewShape).background(detail))
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(AuraSpace.s))
+                    OptionName(name, selected)
+                }
+            }
+        }
+    }
+    Text(
+        "Choisir un thème règle aussi la police, l'horloge, la couleur et le voile. Tu peux les changer ensuite dans les autres onglets.",
+        color = AuraColors.TextFaint,
+        style = AuraType.caption,
+        modifier = Modifier.padding(horizontal = AuraSpace.xl, vertical = AuraSpace.m),
+    )
+}
+
 @Composable
 private fun ClockTab(appearance: Appearance, reduced: Boolean, onSelect: (ClockStyle) -> Unit) {
     val options = listOf(
@@ -341,6 +409,7 @@ private fun ClockTab(appearance: Appearance, reduced: Boolean, onSelect: (ClockS
         ClockStyle.STACKED to "Empilée",
         ClockStyle.WORDS to "En toutes lettres",
         ClockStyle.COMPACT to "Compacte",
+        ClockStyle.NEON to "Néon",
     )
     OptionsRow {
         options.forEach { (style, name) ->
@@ -374,6 +443,16 @@ private fun ClockSample(style: ClockStyle) {
             color = AuraColors.Text,
             style = AuraType.body.copy(fontWeight = FontWeight.Light, fontSize = 15.sp, lineHeight = 19.sp),
         )
+        ClockStyle.NEON -> Text(
+            "21:49",
+            color = AuraColors.Text,
+            style = thin.copy(
+                fontFamily = fontFamilyFor(FontChoice.CHAKRA_PETCH),
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.sp,
+                shadow = androidx.compose.ui.graphics.Shadow(AuraColors.Accent.copy(alpha = 0.6f), androidx.compose.ui.geometry.Offset.Zero, 16f),
+            ),
+        )
         ClockStyle.COMPACT -> Text(
             "21:49 · jeu. 19",
             color = AuraColors.Text,
@@ -393,6 +472,7 @@ private fun FontTab(appearance: Appearance, reduced: Boolean, onSelect: (FontCho
         FontChoice.MANROPE to "Manrope",
         FontChoice.INSTRUMENT_SERIF to "Instrument Serif",
         FontChoice.SPACE_MONO to "Space Mono",
+        FontChoice.CHAKRA_PETCH to "Chakra Petch",
     )
     OptionsRow {
         options.forEach { (choice, name) ->
@@ -421,7 +501,9 @@ private fun FontTab(appearance: Appearance, reduced: Boolean, onSelect: (FontCho
 
 @Composable
 private fun ColorTab(appearance: Appearance, wallpaperColor: Int?, onSelect: (Int) -> Unit) {
-    val autoColor = resolveAccent(ACCENT_AUTO, wallpaperColor)
+    val autoColor = resolveAccent(ACCENT_AUTO, wallpaperColor, appearance.theme)
+    // --- Thèmes --- un thème qui a sa propre couleur la garde en « Auto ».
+    val themeColor = specFor(appearance.theme).themeAccent != null
     OptionsRow {
         Swatch(
             color = autoColor,
@@ -442,7 +524,11 @@ private fun ColorTab(appearance: Appearance, wallpaperColor: Int?, onSelect: (In
     }
     val chosen = AccentPalette.getOrNull(appearance.accent)?.first
     Text(
-        if (chosen != null) chosen else "Auto · d'après ton fond d'écran",
+        when {
+            chosen != null -> chosen
+            themeColor -> "Auto · couleur du thème"
+            else -> "Auto · d'après ton fond d'écran"
+        },
         color = AuraColors.TextDim,
         style = AuraType.body,
         modifier = Modifier.padding(horizontal = AuraSpace.xl, vertical = AuraSpace.m),
@@ -458,7 +544,7 @@ private fun Swatch(color: Color, auto: Boolean, name: String, selected: Boolean,
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .clip(RoundedCornerShape(AuraRadius.s))
+            .clip(auraShape(AuraRadius.s))
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .semantics { contentDescription = name }
             .padding(AuraSpace.xs),

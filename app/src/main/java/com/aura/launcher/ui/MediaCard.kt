@@ -405,9 +405,9 @@ private fun Artwork(art: ImageBitmap?, direction: Int, accent: Color, reduceMoti
         modifier = modifier
             .size(ArtSize)
             // Légère ombre portée : la pochette se détache de la carte.
-            .shadow(10.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black, spotColor = Color.Black)
+            .shadow(10.dp, auraShape(16.dp), ambientColor = Color.Black, spotColor = Color.Black)
             // Découpe aux coins arrondis : le disque de révélation ne déborde jamais.
-            .clip(RoundedCornerShape(16.dp))
+            .clip(auraShape(16.dp))
             .background(placeholder),
     ) {
         ArtLayer(base, placeholder, Modifier)

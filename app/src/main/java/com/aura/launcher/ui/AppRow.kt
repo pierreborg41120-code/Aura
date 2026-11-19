@@ -84,7 +84,7 @@ fun AppRow(
             modifier = Modifier
                 .fillMaxWidth()
                 // Retour visuel au toucher arrondi, légèrement débordant pour ne pas coller au texte.
-                .clip(RoundedCornerShape(AuraRadius.s))
+                .clip(auraShape(AuraRadius.s))
                 .combinedClickable(
                     onClick = { actions.launch(app) },
                     onLongClick = {
@@ -134,7 +134,7 @@ fun AppRow(
                             .then(
                                 if (onSubtitleClick != null) {
                                     Modifier
-                                        .clip(RoundedCornerShape(AuraRadius.s))
+                                        .clip(auraShape(AuraRadius.s))
                                         .clickable(onClickLabel = "Voir les notifications", onClick = onSubtitleClick)
                                 } else {
                                     Modifier

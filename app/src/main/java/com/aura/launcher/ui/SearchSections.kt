@@ -95,7 +95,7 @@ private fun ResultRow(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = AuraSpace.touch)
-            .clip(RoundedCornerShape(AuraRadius.s))
+            .clip(auraShape(AuraRadius.s))
             .clickable(onClickLabel = onClickLabel, role = Role.Button, onClick = onClick)
             .padding(vertical = AuraSpace.s + AuraSpace.xxs),
     ) {
@@ -301,7 +301,7 @@ fun SuggestedApps(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(AuraRadius.s))
+                        .clip(auraShape(AuraRadius.s))
                         .clickable(onClickLabel = "Ouvrir ${app.label}", role = Role.Button) { actions.launch(app) }
                         .padding(vertical = AuraSpace.s),
                 ) {

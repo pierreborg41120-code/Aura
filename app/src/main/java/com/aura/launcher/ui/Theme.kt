@@ -25,7 +25,12 @@ import androidx.compose.animation.core.Easing
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Shape
+import com.aura.launcher.ThemeId
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.SwitchColors
@@ -68,38 +73,146 @@ import androidx.compose.ui.unit.sp
 
 /** Couleurs d'Aura. Les noms historiques (Text, TextDim…) sont conservés : d'autres fichiers s'en servent. */
 object AuraColors {
-    /** Fond nuit de l'icône. */
-    val Night = Color(0xFF0B0B10)
-    /** Texte plein : blanc lunaire, à peine bleuté. */
-    val Text = Color(0xFFF4F4FA)
-    val TextDim = Color(0xB3F4F4FA)
-    val TextFaint = Color(0x66F4F4FA)
-    /** Halo lavande de l'icône : l'accent par défaut, avant tout réglage d'apparence. */
+    // --- Thèmes --- les couleurs des surfaces viennent du thème en cours (AuraLook.spec) :
+    // ce sont des getters sur un état Compose, tout se redessine quand le thème change.
+    /** Fond nuit. */
+    val Night: Color get() = AuraLook.spec.night
+    /** Texte plein. */
+    val Text: Color get() = AuraLook.spec.text
+    val TextDim: Color get() = AuraLook.spec.textDim
+    val TextFaint: Color get() = AuraLook.spec.textFaint
+    /** Halo lavande de l'icône : l'accent par défaut du thème Éclipse. */
     val Lavender = Color(0xFF8C9BFF)
     /**
-     * --- Apparence --- accent en cours (lavande, palette ou couleur du fond d'écran).
+     * --- Apparence --- accent en cours (thème, palette ou couleur du fond d'écran).
      * Lu depuis un état Compose : tout ce qui l'affiche se redessine quand il change.
      */
     val Accent: Color get() = AuraAccent.color
     /** Accent éclairci vers le blanc (texte sur fond sombre, survols). */
     val AccentLight: Color get() = lerp(AuraAccent.color, Color.White, 0.55f)
-    /** Texte posé sur la lavande. */
-    val OnAccent = Night
+    /** Couleur secondaire du thème (cyan pour Néon, accent éclairci pour Éclipse). */
+    val Secondary: Color get() = AuraLook.spec.secondary ?: AccentLight
+    /** Texte posé sur l'accent. */
+    val OnAccent: Color get() = AuraLook.spec.night
     /** Voile des écrans plein cadre (tiroir, réglages, assistant). */
-    val DrawerScrim = Color(0xF00B0B10)
+    val DrawerScrim: Color get() = AuraLook.spec.drawerScrim
     /** Voile sous la carte de l'app. */
-    val SheetScrim = Color(0x8C05050A)
+    val SheetScrim: Color get() = AuraLook.spec.sheetScrim
     /** Cartes, champs, menus. */
-    val Surface = Color(0xFF16161F)
+    val Surface: Color get() = AuraLook.spec.surface
     /** Élément posé sur une carte (aperçu de widget, bouton secondaire). */
-    val SurfaceRaised = Color(0xFF20202B)
+    val SurfaceRaised: Color get() = AuraLook.spec.surfaceRaised
     /** Filet discret (bordures, séparateurs). */
-    val Hairline = Color(0x1AF4F4FA)
+    val Hairline: Color get() = AuraLook.spec.hairline
     /** Voile en dégradé posé sur le fond d'écran (plus dense en haut et en bas) : niveau « Léger », par défaut. */
     val WallpaperVeil = listOf(Color(0x73000000), Color(0x1A000000), Color(0x1A000000), Color(0x8C000000))
     /** Ombre portée du texte posé sur le fond d'écran. */
-    val TextShadow = Color(0x8C000000)
+    val TextShadow: Color get() = AuraLook.spec.textShadow
 }
+
+// --- Thèmes ---
+
+/** Tout ce qui change d'un thème à l'autre. */
+data class ThemeSpec(
+    val id: ThemeId,
+    val night: Color,
+    val text: Color,
+    val textDim: Color,
+    val textFaint: Color,
+    val drawerScrim: Color,
+    val sheetScrim: Color,
+    val surface: Color,
+    val surfaceRaised: Color,
+    val hairline: Color,
+    val textShadow: Color,
+    /** Accent quand le réglage Couleur est sur « Auto » (null = couleur du fond d'écran). */
+    val themeAccent: Color?,
+    /** Couleur secondaire des détails (null = accent éclairci). */
+    val secondary: Color?,
+    /** Coins coupés en biseau au lieu d'arrondis. */
+    val cutCorners: Boolean,
+    /** Fines lignes de balayage (immobiles) sur les écrans plein cadre. */
+    val scanlines: Boolean,
+)
+
+/** « Éclipse » : le thème d'origine (valeurs inchangées). */
+val EclipseSpec = ThemeSpec(
+    id = ThemeId.ECLIPSE,
+    night = Color(0xFF0B0B10),
+    text = Color(0xFFF4F4FA),
+    textDim = Color(0xB3F4F4FA),
+    textFaint = Color(0x66F4F4FA),
+    drawerScrim = Color(0xF00B0B10),
+    sheetScrim = Color(0x8C05050A),
+    surface = Color(0xFF16161F),
+    surfaceRaised = Color(0xFF20202B),
+    hairline = Color(0x1AF4F4FA),
+    textShadow = Color(0x8C000000),
+    themeAccent = null,
+    secondary = null,
+    cutCorners = false,
+    scanlines = false,
+)
+
+/** Jaune électrique du thème Néon. */
+val NeonYellow = Color(0xFFFCEE0A)
+/** Cyan du thème Néon. */
+val NeonCyan = Color(0xFF00E5FF)
+
+/** « Néon » : nuit urbaine bleutée, jaune électrique, détails cyan, coins coupés. */
+val NeonSpec = ThemeSpec(
+    id = ThemeId.NEON,
+    night = Color(0xFF07090F),
+    text = Color(0xFFEAF7FF),
+    textDim = Color(0xB3EAF7FF),
+    textFaint = Color(0x66EAF7FF),
+    drawerScrim = Color(0xF207090F),
+    sheetScrim = Color(0x9903050A),
+    surface = Color(0xFF0F1420),
+    surfaceRaised = Color(0xFF172031),
+    hairline = Color(0x3300E5FF),
+    textShadow = Color(0x99000000),
+    themeAccent = NeonYellow,
+    secondary = NeonCyan,
+    cutCorners = true,
+    scanlines = true,
+)
+
+fun specFor(theme: ThemeId): ThemeSpec = when (theme) {
+    ThemeId.ECLIPSE -> EclipseSpec
+    ThemeId.NEON -> NeonSpec
+}
+
+/** Thème en cours, écrit par [AuraTheme]. */
+object AuraLook {
+    var spec by mutableStateOf(EclipseSpec)
+}
+
+/** Forme d'une surface : arrondie (Éclipse) ou en biseau (Néon). Le biseau est plus petit que l'arrondi. */
+fun auraShape(radius: Dp): Shape =
+    if (AuraLook.spec.cutCorners) CutCornerShape(radius * 0.45f) else RoundedCornerShape(radius)
+
+fun auraShape(topStart: Dp = 0.dp, topEnd: Dp = 0.dp): Shape =
+    if (AuraLook.spec.cutCorners) CutCornerShape(topStart = topStart * 0.45f, topEnd = topEnd * 0.45f)
+    else RoundedCornerShape(topStart = topStart, topEnd = topEnd)
+
+/**
+ * Fond des écrans plein cadre (tiroir, réglages…) : le voile du thème, plus de fines lignes de
+ * balayage immobiles pour le thème Néon.
+ */
+fun Modifier.themeBackdrop(): Modifier = this
+    .background(AuraColors.DrawerScrim)
+    .drawBehind {
+        if (AuraLook.spec.scanlines) {
+            val step = 3.dp.toPx()
+            val line = NeonCyan.copy(alpha = 0.035f)
+            var y = 0f
+            while (y < size.height) {
+                drawLine(line, Offset(0f, y), Offset(size.width, y), strokeWidth = 1f)
+                y += step
+            }
+        }
+    }
 
 /** Espacements (dp). */
 object AuraSpace {
@@ -143,9 +256,9 @@ object AuraMotion {
 object AuraShadow {
     // Valeurs en pixels (Shadow ne connaît pas les dp) : réglées pour un écran ~2,6x (1080 px de large).
     /** Pour les petits textes (date, statut, favoris). */
-    val soft = Shadow(color = AuraColors.TextShadow, offset = Offset(0f, 3f), blurRadius = 12f)
+    val soft: Shadow get() = Shadow(color = AuraColors.TextShadow, offset = Offset(0f, 3f), blurRadius = 12f)
     /** Pour l'horloge : plus large, très diffuse. */
-    val wide = Shadow(color = AuraColors.TextShadow, offset = Offset(0f, 4f), blurRadius = 28f)
+    val wide: Shadow get() = Shadow(color = AuraColors.TextShadow, offset = Offset(0f, 4f), blurRadius = 28f)
 }
 
 /** Échelle typographique (sp), une seule famille : hiérarchie par la taille et la graisse. */
@@ -277,8 +390,10 @@ val LocalAppearance = staticCompositionLocalOf { Appearance() }
  * Accent à afficher. [accent] vaut ACCENT_AUTO ou un indice de palette ; [wallpaperColor] est la
  * couleur brute du fond d'écran (null si inconnue → lavande).
  */
-fun resolveAccent(accent: Int, wallpaperColor: Int?): Color {
+fun resolveAccent(accent: Int, wallpaperColor: Int?, theme: ThemeId = ThemeId.ECLIPSE): Color {
     if (accent in AccentPalette.indices) return AccentPalette[accent].second
+    // --- Thèmes --- un thème qui a sa propre couleur (Néon : jaune) la garde en « Auto ».
+    specFor(theme).themeAccent?.let { return it }
     return wallpaperAccent(wallpaperColor) ?: AuraColors.Lavender
 }
 
@@ -333,12 +448,23 @@ private val SpaceMono = FontFamily(
     Font(R.font.space_mono_bold, FontWeight.Bold),
 )
 
+/** Chakra Petch (thème Néon) : anguleuse, quatre graisses. */
+private val ChakraPetch = FontFamily(
+    Font(R.font.chakra_petch_light, FontWeight.Light),
+    Font(R.font.chakra_petch_light, FontWeight.ExtraLight),
+    Font(R.font.chakra_petch_regular, FontWeight.Normal),
+    Font(R.font.chakra_petch_medium, FontWeight.Medium),
+    Font(R.font.chakra_petch_semibold, FontWeight.SemiBold),
+    Font(R.font.chakra_petch_semibold, FontWeight.Bold),
+)
+
 /** Famille de police de l'accueil et du tiroir (les réglages gardent celle du système). */
 fun fontFamilyFor(choice: FontChoice): FontFamily = when (choice) {
     FontChoice.SYSTEM -> FontFamily.SansSerif
     FontChoice.MANROPE -> Manrope
     FontChoice.INSTRUMENT_SERIF -> InstrumentSerif
     FontChoice.SPACE_MONO -> SpaceMono
+    FontChoice.CHAKRA_PETCH -> ChakraPetch
 }
 
 /**
@@ -346,7 +472,7 @@ fun fontFamilyFor(choice: FontChoice): FontFamily = when (choice) {
  * Space Mono est large (chasse fixe), Instrument Serif a un petit œil.
  */
 fun fontSizeFactor(choice: FontChoice): Float = when (choice) {
-    FontChoice.SYSTEM, FontChoice.MANROPE -> 1f
+    FontChoice.SYSTEM, FontChoice.MANROPE, FontChoice.CHAKRA_PETCH -> 1f
     FontChoice.INSTRUMENT_SERIF -> 1.08f
     FontChoice.SPACE_MONO -> 0.86f
 }
@@ -385,8 +511,14 @@ fun AuraTheme(
     wallpaperColor: Int? = null,
     content: @Composable () -> Unit,
 ) {
-    val accent = remember(appearance.accent, wallpaperColor) { resolveAccent(appearance.accent, wallpaperColor) }
-    SideEffect { AuraAccent.color = accent }
+    val accent = remember(appearance.accent, wallpaperColor, appearance.theme) {
+        resolveAccent(appearance.accent, wallpaperColor, appearance.theme)
+    }
+    // Écrits pendant la composition de la racine : tout ce qui est composé en dessous voit déjà
+    // le bon thème (pas d'image intermédiaire aux couleurs d'Éclipse au démarrage).
+    val spec = specFor(appearance.theme)
+    if (AuraLook.spec != spec) AuraLook.spec = spec
+    if (AuraAccent.color != accent) AuraAccent.color = accent
     CompositionLocalProvider(LocalAppearance provides appearance) {
         AuraMaterialTheme(accent, content)
     }
@@ -410,11 +542,11 @@ private fun AuraMaterialTheme(accent: Color, content: @Composable () -> Unit) {
         ),
         // Menus d'appui long et boîtes de dialogue : mêmes coins arrondis que le reste d'Aura.
         shapes = Shapes(
-            extraSmall = RoundedCornerShape(AuraRadius.m),
-            small = RoundedCornerShape(AuraRadius.s),
-            medium = RoundedCornerShape(AuraRadius.m),
-            large = RoundedCornerShape(AuraRadius.l),
-            extraLarge = RoundedCornerShape(AuraRadius.xl),
+            extraSmall = auraShape(AuraRadius.m),
+            small = auraShape(AuraRadius.s),
+            medium = auraShape(AuraRadius.m),
+            large = auraShape(AuraRadius.l),
+            extraLarge = auraShape(AuraRadius.xl),
         ),
         content = content,
     )

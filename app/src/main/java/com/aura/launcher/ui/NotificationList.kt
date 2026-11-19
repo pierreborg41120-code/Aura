@@ -398,7 +398,7 @@ private fun ReplyField(to: String?, onCancel: () -> Unit, onSend: (String) -> Bo
             }
         }
         Row(verticalAlignment = Alignment.Bottom) {
-            val fieldShape = RoundedCornerShape(AuraRadius.l)
+            val fieldShape = auraShape(AuraRadius.l)
             BasicTextField(
                 value = text,
                 onValueChange = {
@@ -496,7 +496,7 @@ private fun SmallTextButton(label: String, color: androidx.compose.ui.graphics.C
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .heightIn(min = AuraSpace.touch)
-            .clip(RoundedCornerShape(AuraRadius.s))
+            .clip(auraShape(AuraRadius.s))
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = AuraSpace.m),
     ) {

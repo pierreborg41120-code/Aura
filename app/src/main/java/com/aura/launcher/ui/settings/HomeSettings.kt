@@ -129,7 +129,7 @@ private fun Choice(
         ) {
             options.forEach { (name, value) ->
                 val isSelected = value == selected
-                val shape = RoundedCornerShape(AuraRadius.s)
+                val shape = auraShape(AuraRadius.s)
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier

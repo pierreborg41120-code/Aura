@@ -34,7 +34,7 @@ fun SettingsScreen(state: LauncherState, actions: LauncherActions) {
     Column(
         Modifier
             .fillMaxSize()
-            .background(AuraColors.DrawerScrim)
+            .themeBackdrop()
             .systemBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = AuraSpace.gutter, vertical = AuraSpace.xl),
@@ -136,7 +136,7 @@ fun SettingsScreen(state: LauncherState, actions: LauncherActions) {
                         color = AuraColors.Accent,
                         style = AuraType.label,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(AuraRadius.s))
+                            .clip(auraShape(AuraRadius.s))
                             .clickable { actions.setHidden(app.key, false) }
                             .padding(horizontal = AuraSpace.m, vertical = AuraSpace.s + AuraSpace.xxs),
                     )
@@ -259,7 +259,7 @@ private fun ChoiceRow(
         ) {
             options.forEach { (name, value) ->
                 val isSelected = kotlin.math.abs(value - selected) < 0.01f
-                val shape = RoundedCornerShape(AuraRadius.s)
+                val shape = auraShape(AuraRadius.s)
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
@@ -307,9 +307,9 @@ private fun Diagnostics(state: LauncherState) {
         Modifier
             .fillMaxWidth()
             .padding(vertical = AuraSpace.s)
-            .clip(RoundedCornerShape(AuraRadius.m))
+            .clip(auraShape(AuraRadius.m))
             .background(AuraColors.Surface)
-            .border(1.dp, AuraColors.Hairline, RoundedCornerShape(AuraRadius.m))
+            .border(1.dp, AuraColors.Hairline, auraShape(AuraRadius.m))
             .padding(AuraSpace.l),
     ) {
         Text("Diagnostic", color = AuraColors.TextDim, style = AuraType.label)
