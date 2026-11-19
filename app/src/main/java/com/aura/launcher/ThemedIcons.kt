@@ -32,9 +32,11 @@ data class IconLook(
     val frame: Int = 0,
     /** Coins coupés (Néon) plutôt qu'arrondis. */
     val cutCorners: Boolean = false,
+    /** Coins presque droits (Terminal). */
+    val squareCorners: Boolean = false,
 ) {
     /** Jeton court pour la clé de cache. */
-    val token: String get() = "$style:$pack:$glyph:$line:$frame:$cutCorners"
+    val token: String get() = "$style:$pack:$glyph:$line:$frame:$cutCorners:$squareCorners"
 
     companion object {
         val ORIGINAL = IconLook(IconStyle.ORIGINAL)
@@ -50,7 +52,7 @@ fun renderThemedIcon(icon: Drawable, size: Int, look: IconLook): Bitmap {
     // Cadre : fond nuit presque opaque + filet de la couleur de détail.
     val stroke = (s * 0.035f).coerceAtLeast(1f)
     val rect = RectF(stroke, stroke, s - stroke, s - stroke)
-    val frame = framePath(rect, look.cutCorners, s)
+    val frame = framePath(rect, look.cutCorners, look.squareCorners, s)
     canvas.drawPath(frame, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = withAlpha(look.frame, 0.92f) })
     canvas.drawPath(frame, Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
@@ -76,8 +78,10 @@ fun renderThemedIcon(icon: Drawable, size: Int, look: IconLook): Bitmap {
 }
 
 /** Contour du cadre : biseau aux quatre coins, ou coins arrondis. */
-private fun framePath(r: RectF, cut: Boolean, s: Float): Path = Path().apply {
-    if (cut) {
+private fun framePath(r: RectF, cut: Boolean, square: Boolean, s: Float): Path = Path().apply {
+    if (square) {
+        addRoundRect(r, s * 0.04f, s * 0.04f, Path.Direction.CW)
+    } else if (cut) {
         val c = s * 0.2f
         moveTo(r.left + c, r.top)
         lineTo(r.right - c, r.top)

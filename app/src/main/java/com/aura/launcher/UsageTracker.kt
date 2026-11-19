@@ -15,11 +15,22 @@ import kotlin.math.pow
  */
 class UsageTracker(context: Context) {
     private val sp = context.getSharedPreferences("aura_usage", Context.MODE_PRIVATE)
+    /** --- Limiteur --- ouvertures du jour, clé de l'app → "aaaammjj|nombre" (fichier à part). */
+    private val daily = context.getSharedPreferences("aura_usage_daily", Context.MODE_PRIVATE)
+
+    /** Nombre d'ouvertures de l'app aujourd'hui (depuis Aura). */
+    fun todayCount(key: String): Int {
+        val raw = daily.getString(key, null) ?: return 0
+        return if (raw.substringBefore('|') == today()) raw.substringAfter('|').toIntOrNull() ?: 0 else 0
+    }
+
+    private fun today(): String = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.ROOT).format(java.util.Date())
 
     /** Note un lancement de l'app [key]. */
     fun record(key: String, now: Long = System.currentTimeMillis()) {
         val current = decayed(sp.getString(key, null), now)
         sp.edit().putString(key, encode(current + 1.0, now)).apply()
+        daily.edit().putString(key, "${today()}|${todayCount(key) + 1}").apply()
     }
 
     /** Scores actuels (décroissance appliquée). Oublie au passage les apps qui ne comptent plus. */
@@ -41,6 +52,7 @@ class UsageTracker(context: Context) {
     /** Efface tout l'historique. */
     fun clear() {
         sp.edit().clear().apply()
+        daily.edit().clear().apply()
     }
 
     private fun decayed(raw: String?, now: Long): Double {

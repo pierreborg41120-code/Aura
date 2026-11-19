@@ -46,6 +46,22 @@ class LauncherState {
 
     fun notificationsFor(app: AppEntry): NotificationInfo? = notifications[app.notificationKey]
 
+    // --- Récap des notifications ---
+    var notifRecap by mutableStateOf(true)
+    var recapOpen by mutableStateOf(false)
+
+    // --- Limiteur ---
+    var limitedApps by mutableStateOf<Set<String>>(emptySet())
+    /** App limitée en attente d'ouverture (affiche l'écran de pause). */
+    var pendingLimited by mutableStateOf<AppEntry?>(null)
+    /** Ouvertures du jour de [pendingLimited]. */
+    var pendingLimitedCount by mutableStateOf(0)
+
+    // --- Gestes ---
+    var gestureActions by mutableStateOf<Map<Gesture, String>>(emptyMap())
+    /** Demande au tiroir de placer le curseur dans la recherche (geste « Recherche »). */
+    var focusSearch by mutableStateOf(false)
+
     // --- Dossiers ---
     var folders by mutableStateOf<List<Folder>>(emptyList())
     /** Dossier ouvert (son id), null si aucun. */
@@ -254,6 +270,20 @@ interface LauncherActions {
     fun setShowHeadphoneApps(show: Boolean)
     fun setAllowRotation(allow: Boolean)
     fun setHapticsEnabled(enabled: Boolean)
+
+    // --- Récap des notifications ---
+    fun setNotifRecap(enabled: Boolean)
+    /** Efface toutes les notifications effaçables. */
+    fun dismissAllNotifications()
+
+    // --- Limiteur ---
+    fun setLimited(app: AppEntry, limited: Boolean)
+    /** Ouvre l'app sans passer par la pause (« Ouvrir quand même »). */
+    fun launchAnyway(app: AppEntry)
+
+    // --- Gestes ---
+    fun setGestureAction(gesture: Gesture, action: String)
+    fun performGesture(gesture: Gesture)
 
     // --- Dossiers ---
     /** Range l'app dans le dossier [folderId], ou dans un nouveau dossier nommé [newName] (placé sur l'accueil). */

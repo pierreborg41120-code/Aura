@@ -31,6 +31,9 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
     BackHandler(enabled = true) {
         when {
             state.renaming != null -> state.renaming = null
+            // --- Limiteur / récap ---
+            state.pendingLimited != null -> state.pendingLimited = null
+            state.recapOpen -> state.recapOpen = false
             // --- Dossiers ---
             state.folderPicking != null -> state.folderPicking = null
             state.renamingFolder != null -> state.renamingFolder = null
@@ -108,6 +111,9 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
             OnboardingScreen(state, actions)
         }
 
+        // --- Récap des notifications ---
+        RecapSheet(state, actions)
+
         // --- Dossiers --- fenêtre du dossier ouvert, puis ses boîtes de dialogue.
         FolderSheet(state, actions)
         AddToFolderDialog(state, actions)
@@ -139,5 +145,8 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
         ) {
             HomeWidgetPicker(state, actions)
         }
+
+        // --- Limiteur --- écran de pause, par-dessus tout le reste.
+        LimiterPause(state, actions)
     }
 }

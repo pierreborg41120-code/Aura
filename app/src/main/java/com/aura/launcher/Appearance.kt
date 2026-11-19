@@ -29,6 +29,10 @@ enum class ThemeId {
     ECLIPSE,
     /** Nuit urbaine, jaune électrique et cyan, coins coupés. */
     NEON,
+    /** Vert phosphore sur noir, police machine à écrire, coins droits. */
+    TERMINAL,
+    /** Nuit chaude, pêche et rose, police à empattements, grands arrondis. */
+    AUBE,
 }
 
 /** Police de l'accueil et du tiroir (les réglages gardent la police du système). */
@@ -63,22 +67,41 @@ data class Appearance(
 )
 
 /** Préréglage appliqué quand on choisit un thème (les autres réglages sont conservés). */
-fun Appearance.withTheme(theme: ThemeId): Appearance = when (theme) {
-    ThemeId.ECLIPSE -> copy(
-        theme = theme,
-        clock = if (clock == ClockStyle.NEON) ClockStyle.THIN else clock,
-        font = if (font == FontChoice.CHAKRA_PETCH) FontChoice.SYSTEM else font,
-        accent = ACCENT_AUTO,
-        veil = VeilLevel.LIGHT,
-        iconStyle = if (iconStyle == IconStyle.THEME) IconStyle.ORIGINAL else iconStyle,
-    )
-    ThemeId.NEON -> copy(
-        theme = theme,
-        clock = ClockStyle.NEON,
-        font = FontChoice.CHAKRA_PETCH,
-        accent = ACCENT_AUTO,
-        veil = VeilLevel.MEDIUM,
-        // Un pack choisi par l'utilisateur est gardé ; sinon, icônes du thème.
-        iconStyle = if (iconStyle == IconStyle.PACK) iconStyle else IconStyle.THEME,
-    )
+fun Appearance.withTheme(theme: ThemeId): Appearance {
+    // Un pack d'icônes choisi par l'utilisateur est toujours gardé.
+    val keepPack = iconStyle == IconStyle.PACK
+    return when (theme) {
+        ThemeId.ECLIPSE -> copy(
+            theme = theme,
+            clock = if (clock == ClockStyle.NEON) ClockStyle.THIN else clock,
+            font = FontChoice.SYSTEM,
+            accent = ACCENT_AUTO,
+            veil = VeilLevel.LIGHT,
+            iconStyle = if (iconStyle == IconStyle.THEME) IconStyle.ORIGINAL else iconStyle,
+        )
+        ThemeId.NEON -> copy(
+            theme = theme,
+            clock = ClockStyle.NEON,
+            font = FontChoice.CHAKRA_PETCH,
+            accent = ACCENT_AUTO,
+            veil = VeilLevel.MEDIUM,
+            iconStyle = if (keepPack) iconStyle else IconStyle.THEME,
+        )
+        ThemeId.TERMINAL -> copy(
+            theme = theme,
+            clock = ClockStyle.THIN,
+            font = FontChoice.SPACE_MONO,
+            accent = ACCENT_AUTO,
+            veil = VeilLevel.STRONG,
+            iconStyle = if (keepPack) iconStyle else IconStyle.THEME,
+        )
+        ThemeId.AUBE -> copy(
+            theme = theme,
+            clock = ClockStyle.WORDS,
+            font = FontChoice.INSTRUMENT_SERIF,
+            accent = ACCENT_AUTO,
+            veil = VeilLevel.LIGHT,
+            iconStyle = if (keepPack) iconStyle else IconStyle.THEME,
+        )
+    }
 }
