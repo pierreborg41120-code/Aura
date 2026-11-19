@@ -195,6 +195,8 @@ class Prefs(context: Context) {
                 veil = enumOr(sp.getString("look_veil", null), d.veil),
                 blurDrawer = sp.getBoolean("look_blur_drawer", d.blurDrawer),
                 alignment = enumOr(sp.getString("look_alignment", null), d.alignment),
+                iconStyle = enumOr(sp.getString("look_icon_style", null), d.iconStyle),
+                iconPack = sp.getString("look_icon_pack", d.iconPack) ?: d.iconPack,
             )
         }
         set(value) = sp.edit()
@@ -205,6 +207,8 @@ class Prefs(context: Context) {
             .putString("look_veil", value.veil.name)
             .putBoolean("look_blur_drawer", value.blurDrawer)
             .putString("look_alignment", value.alignment.name)
+            .putString("look_icon_style", value.iconStyle.name)
+            .putString("look_icon_pack", value.iconPack)
             .apply()
 
     /** Valeur enregistrée si elle existe encore dans l'enum, sinon [default]. */
