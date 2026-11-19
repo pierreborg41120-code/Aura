@@ -63,6 +63,28 @@ class LauncherState {
     /** App dont on choisit la limite (boîte « Limiter »). */
     var limitChoosing by mutableStateOf<AppEntry?>(null)
 
+    /** Vrai : l'écran de pause dit « Concentration » (app mise de côté pendant la concentration). */
+    var pendingFocus by mutableStateOf(false)
+
+    // --- Concentration ---
+    var focus by mutableStateOf(FocusSettings())
+    /** Concentration en cours (recalculée chaque minute). */
+    var focusActive by mutableStateOf(false)
+    /** Fin de la concentration en cours (null si inactive). */
+    var focusEndsAt by mutableStateOf<Long?>(null)
+    /** Apps retirées de l'accueil et de la liste en ce moment. */
+    val focusHidden: Set<String>
+        get() = if (focusActive) focus.apps else emptySet()
+    /** Apps de la liste alphabétique (sans les apps masquées ni celles mises de côté). */
+    val drawerApps: List<AppEntry>
+        get() = focusHidden.let { away -> if (away.isEmpty()) visibleApps else visibleApps.filter { it.key !in away } }
+    /** Boîte « Concentration » ouverte depuis l'accueil. */
+    var focusDialogOpen by mutableStateOf(false)
+
+    // --- Profils d'accueil ---
+    var profiles by mutableStateOf(ProfileSettings())
+    var homeProfile by mutableStateOf(HomeProfile.PERSO)
+
     // --- Gestes ---
     var gestureActions by mutableStateOf<Map<Gesture, String>>(emptyMap())
     /** Demande au tiroir de placer le curseur dans la recherche (geste « Recherche »). */
@@ -82,13 +104,14 @@ class LauncherState {
         get() {
             val byKey = apps.associateBy { it.key }
             val foldersById = folders.associateBy { it.id }
+            val away = focusHidden
             return favorites.mapNotNull { key ->
                 if (key.startsWith(FOLDER_PREFIX)) {
                     val folder = foldersById[key.removePrefix(FOLDER_PREFIX)] ?: return@mapNotNull null
-                    val folderApps = folder.apps.mapNotNull { byKey[it] }
+                    val folderApps = folder.apps.filter { it !in away }.mapNotNull { byKey[it] }
                     if (folderApps.isEmpty()) null else HomeItem.Group(folder, folderApps)
                 } else {
-                    byKey[key]?.let { HomeItem.App(it) }
+                    if (key in away) null else byKey[key]?.let { HomeItem.App(it) }
                 }
             }
         }
@@ -290,6 +313,29 @@ interface LauncherActions {
     fun setAppLimit(app: AppEntry, minutes: Int?)
     /** « Encore 5 minutes » puis ouvre l'app. */
     fun grantMoreTime(app: AppEntry)
+
+    // --- Concentration ---
+    /** Met une app de côté pendant la concentration, ou l'y retire. */
+    fun setFocusApp(app: AppEntry, inFocus: Boolean)
+    /** Plage horaire : active ou non, heures et jours. */
+    fun setFocusSchedule(scheduled: Boolean, window: TimeWindow)
+    /** Lance la concentration maintenant pour [minutes]. */
+    fun startFocus(minutes: Int)
+    /** Arrête la concentration en cours (la plage horaire reprendra la prochaine fois). */
+    fun stopFocus()
+
+    // --- Profils d'accueil ---
+    fun setProfiles(settings: ProfileSettings)
+    /** Affiche le profil [profile] (ses favoris remplacent ceux de l'accueil). */
+    fun switchProfile(profile: Int)
+
+    // --- Actions rapides ---
+    /** Contact correspondant au début de [who], et le reste du texte (le message). Hors du thread principal. */
+    fun findQuickContact(who: String): Pair<com.aura.launcher.search.ContactResult, String>?
+    fun startTimer(seconds: Int)
+    fun setAlarm(hour: Int, minute: Int)
+    /** Ouvre l'app de messages vers le contact, avec le texte déjà écrit (rien n'est envoyé sans toi). */
+    fun sendSms(contact: com.aura.launcher.search.ContactResult, body: String)
 
     // --- Gestes ---
     fun setGestureAction(gesture: Gesture, action: String)

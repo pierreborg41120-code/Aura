@@ -149,6 +149,7 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
 
         // --- Limiteur --- choix de la limite, puis écran de pause par-dessus tout le reste.
         LimitDialog(state, actions)
+        FocusDialog(state, actions) // --- Concentration ---
         LimiterPause(state, actions)
     }
 }

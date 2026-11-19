@@ -435,3 +435,88 @@ private fun PhoneGlyph(color: Color) {
         }
     }
 }
+
+// --- Actions rapides ---
+
+/** Type de glyphe d'une action rapide. */
+enum class QuickKind { CLOCK, MESSAGE, CALL }
+
+/** Action rapide reconnue dans la saisie (« minuteur 10 », « sms Julie »…), en tête des résultats. */
+@Composable
+fun QuickActionRow(
+    title: String,
+    caption: String,
+    kind: QuickKind,
+    showIcon: Boolean,
+    iconSize: Dp,
+    textStyle: TextStyle,
+    onClick: (() -> Unit)?,
+) {
+    ResultRow(
+        onClick = { onClick?.invoke() },
+        onClickLabel = title,
+        showIcon = showIcon,
+        iconSize = iconSize,
+        leading = {
+            RingGlyph(AuraColors.Accent, iconSize) {
+                when (kind) {
+                    QuickKind.CLOCK -> ClockGlyph(AuraColors.AccentLight)
+                    QuickKind.MESSAGE -> BubbleGlyph(AuraColors.AccentLight)
+                    QuickKind.CALL -> PhoneGlyph(AuraColors.AccentLight)
+                }
+            }
+        },
+        trailing = if (onClick != null) {
+            { ChevronGlyph(AuraColors.Accent, Modifier.padding(horizontal = AuraSpace.m)) }
+        } else null,
+    ) {
+        Column {
+            Text(
+                title,
+                style = textStyle,
+                color = if (onClick != null) AuraColors.AccentLight else AuraColors.TextDim,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                caption,
+                style = AuraType.caption,
+                color = AuraColors.TextDim,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = AuraSpace.xxs),
+            )
+        }
+    }
+}
+
+/** Cadran : un cercle et deux aiguilles. */
+@Composable
+private fun ClockGlyph(color: Color) {
+    Canvas(Modifier.size(16.dp)) {
+        val stroke = 1.6.dp.toPx()
+        val r = size.minDimension / 2f - stroke
+        drawCircle(color, radius = r, center = center, style = Stroke(stroke))
+        drawLine(color, center, Offset(center.x, center.y - r * 0.6f), stroke, StrokeCap.Round)
+        drawLine(color, center, Offset(center.x + r * 0.45f, center.y + r * 0.2f), stroke, StrokeCap.Round)
+    }
+}
+
+/** Bulle de message : un rectangle arrondi et une petite pointe. */
+@Composable
+private fun BubbleGlyph(color: Color) {
+    Canvas(Modifier.size(16.dp)) {
+        val stroke = 1.6.dp.toPx()
+        val w = size.width
+        val h = size.height
+        drawRoundRect(
+            color,
+            topLeft = Offset(stroke, stroke),
+            size = Size(w - stroke * 2, h * 0.68f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.22f),
+            style = Stroke(stroke),
+        )
+        drawLine(color, Offset(w * 0.3f, h * 0.7f), Offset(w * 0.22f, h * 0.95f), stroke, StrokeCap.Round)
+        drawLine(color, Offset(w * 0.22f, h * 0.95f), Offset(w * 0.5f, h * 0.72f), stroke, StrokeCap.Round)
+    }
+}

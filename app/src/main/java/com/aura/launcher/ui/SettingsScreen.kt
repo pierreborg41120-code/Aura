@@ -80,6 +80,7 @@ fun SettingsScreen(state: LauncherState, actions: LauncherActions) {
             )
         }
 
+        com.aura.launcher.ui.settings.ProfileSection(state, actions) // --- Profils d'accueil ---
         com.aura.launcher.ui.settings.GestureSettings(state, actions) // --- Gestes ---
         if (state.hasLockAccess) {
             Text(
@@ -108,6 +109,8 @@ fun SettingsScreen(state: LauncherState, actions: LauncherActions) {
         }
 
         com.aura.launcher.ui.settings.LimiterSettings(state, actions) // --- Limiteur ---
+        com.aura.launcher.ui.settings.FocusSection(state, actions) // --- Concentration ---
+        com.aura.launcher.ui.settings.WeeklyReport(state) // --- Bilan de la semaine ---
         com.aura.launcher.ui.settings.BackupSettings(actions) // --- Sauvegarde ---
 
         SectionTitle("Système")

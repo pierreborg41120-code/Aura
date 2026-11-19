@@ -62,6 +62,7 @@ fun LimiterPause(state: LauncherState, actions: LauncherActions) {
         val ready = progress.value >= 1f
         val count = state.pendingLimitedCount
         val timeUp = state.pendingTimeUp
+        val focus = state.pendingFocus && !timeUp
         val limit = state.appLimits[app.component.packageName]
 
         Box(
@@ -91,7 +92,11 @@ fun LimiterPause(state: LauncherState, actions: LauncherActions) {
                 }
                 Spacer(Modifier.height(AuraSpace.xl))
                 Text(
-                    if (timeUp) "Temps écoulé" else "Une petite pause ?",
+                    when {
+                        timeUp -> "Temps écoulé"
+                        focus -> "Concentration"
+                        else -> "Une petite pause ?"
+                    },
                     color = AuraColors.Text,
                     style = AuraType.screenTitle,
                     textAlign = TextAlign.Center,
@@ -100,6 +105,8 @@ fun LimiterPause(state: LauncherState, actions: LauncherActions) {
                 Text(
                     when {
                         timeUp -> "Tu as utilisé tes ${limit?.let(::formatMinutes) ?: "minutes"} de ${app.label} pour aujourd'hui."
+                        focus -> "${app.label} est mise de côté" +
+                            (state.focusEndsAt?.let { " jusqu'à ${com.aura.launcher.formatClockAt(it)}" } ?: "") + "."
                         count == 0 -> "Pas encore ouverte aujourd'hui."
                         count == 1 -> "${app.label} : déjà ouverte 1 fois aujourd'hui."
                         else -> "${app.label} : déjà ouverte $count fois aujourd'hui."
@@ -151,6 +158,7 @@ fun LimitDialog(state: LauncherState, actions: LauncherActions) {
     val pkg = app.component.packageName
     val currentMinutes = state.appLimits[pkg]
     val pauseOnly = app.key in state.limitedApps
+    val inFocus = app.key in state.focus.apps
     AlertDialog(
         onDismissRequest = { state.limitChoosing = null },
         containerColor = AuraColors.Surface,
@@ -177,6 +185,17 @@ fun LimitDialog(state: LauncherState, actions: LauncherActions) {
                 LimitChoices.forEach { m ->
                     LimitLine(formatMinutes(m), currentMinutes == m) { actions.setAppLimit(app, m) }
                 }
+                // --- Concentration --- indépendant des limites ci-dessus.
+                Text(
+                    "Concentration",
+                    color = AuraColors.Accent,
+                    style = AuraType.label,
+                    modifier = Modifier.padding(top = AuraSpace.m, bottom = AuraSpace.xs),
+                )
+                LimitLine(
+                    if (inFocus) "Mise de côté pendant la concentration ✓" else "Mettre de côté pendant la concentration",
+                    inFocus,
+                ) { actions.setFocusApp(app, !inFocus) }
                 if (!state.hasLockAccess) {
                     Text(
                         "Pour fermer l'app quand le temps est écoulé, Aura a besoin du service « Aura – verrouillage » " +
