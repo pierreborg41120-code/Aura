@@ -88,6 +88,9 @@ class MainActivity : ComponentActivity(), LauncherActions {
         state.widgetHeights = prefs.widgetHeights.filterKeys { it in state.widgets }
         // --- Réponses aux notifications ---
         state.replyFromHome = prefs.replyFromHome
+        // --- Apparence ---
+        state.appearance = prefs.appearance
+        watchWallpaperLook()
 
         refreshApps()
         stopObserving = repo.observeChanges { refreshApps() }
@@ -103,7 +106,7 @@ class MainActivity : ComponentActivity(), LauncherActions {
         }
 
         setContent {
-            AuraTheme {
+            AuraTheme(appearance = state.appearance, wallpaperColor = state.wallpaperColor) {
                 LauncherScreen(state = state, actions = this)
             }
         }
@@ -1157,6 +1160,68 @@ class MainActivity : ComponentActivity(), LauncherActions {
         state.hapticsEnabled = enabled
         prefs.hapticsEnabled = enabled
         com.aura.launcher.ui.AuraHaptics.enabled = enabled
+    }
+
+    // --- Apparence ---
+
+    /** Couleur dominante du fond d'écran (aucune permission nécessaire) et prise en charge du flou. */
+    private fun watchWallpaperLook() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            val wm = android.app.WallpaperManager.getInstance(this)
+            fun read() {
+                state.wallpaperColor = try {
+                    wm.getWallpaperColors(android.app.WallpaperManager.FLAG_SYSTEM)?.primaryColor?.toArgb()
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            read()
+            val listener = android.app.WallpaperManager.OnColorsChangedListener { _, which ->
+                if (which and android.app.WallpaperManager.FLAG_SYSTEM != 0) read()
+            }
+            wm.addOnColorsChangedListener(listener, android.os.Handler(mainLooper))
+            lifecycle.addObserver(object : DefaultLifecycleObserver {
+                override fun onDestroy(owner: LifecycleOwner) = wm.removeOnColorsChangedListener(listener)
+            })
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            state.blurSupported = windowManager.isCrossWindowBlurEnabled
+            val blurListener = java.util.function.Consumer<Boolean> { state.blurSupported = it }
+            windowManager.addCrossWindowBlurEnabledListener(blurListener)
+            lifecycle.addObserver(object : DefaultLifecycleObserver {
+                override fun onDestroy(owner: LifecycleOwner) = windowManager.removeCrossWindowBlurEnabledListener(blurListener)
+            })
+        }
+    }
+
+    override fun openAppearanceEditor() {
+        state.settingsOpen = false
+        state.drawerOpen = false
+        state.appearanceEditing = true
+    }
+
+    override fun previewAppearance(appearance: Appearance) {
+        state.appearance = appearance
+    }
+
+    override fun saveAppearance() {
+        prefs.appearance = state.appearance
+        state.appearanceEditing = false
+    }
+
+    override fun cancelAppearance() {
+        state.appearance = prefs.appearance
+        state.appearanceEditing = false
+    }
+
+    private var currentBlur = 0
+
+    override fun setWallpaperBlur(radiusPx: Int) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        val radius = if (state.blurSupported) radiusPx.coerceAtLeast(0) else 0
+        if (radius == currentBlur) return
+        currentBlur = radius
+        window.setBackgroundBlurRadius(radius)
     }
 
     private companion object {

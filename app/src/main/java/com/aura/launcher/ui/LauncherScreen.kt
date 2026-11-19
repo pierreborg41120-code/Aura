@@ -10,7 +10,10 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -23,6 +26,8 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
     BackHandler(enabled = true) {
         when {
             state.renaming != null -> state.renaming = null
+            // --- Apparence --- (l'éditeur peut intercepter Retour avant pour proposer d'annuler)
+            state.appearanceEditing -> actions.cancelAppearance()
             state.onboardingOpen -> actions.finishOnboarding()
             state.settingsOpen -> state.settingsOpen = false
             state.drawerOpen -> state.drawerOpen = false
@@ -36,11 +41,25 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
             // (plus marqué en haut, sous l'heure, et en bas, sous les favoris ; l'ombre de texte fait le reste).
             .background(
                 Brush.verticalGradient(
-                    AuraColors.WallpaperVeil,
+                    // --- Apparence --- niveau de voile choisi (ui/WallpaperLook.kt).
+                    wallpaperVeil(LocalAppearance.current.veil),
                 ),
             ),
     ) {
-        HomeScreen(state, actions)
+        // --- Apparence --- flou du fond d'écran à l'ouverture du tiroir.
+        DrawerBlurEffect(state, actions)
+
+        if (state.appearanceEditing) {
+            // L'accueil, en aperçu, au-dessus du panneau de l'éditeur.
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
+                    HomeScreen(state, actions, preview = true)
+                }
+                AppearanceEditor(state, actions)
+            }
+        } else {
+            HomeScreen(state, actions)
+        }
 
         AnimatedVisibility(
             visible = state.drawerOpen,

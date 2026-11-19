@@ -32,7 +32,18 @@ import androidx.compose.material3.SwitchColors
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.text.style.TextAlign
+import com.aura.launcher.Appearance
+import com.aura.launcher.FontChoice
+import com.aura.launcher.HomeAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -57,10 +68,15 @@ object AuraColors {
     val Text = Color(0xFFF4F4FA)
     val TextDim = Color(0xB3F4F4FA)
     val TextFaint = Color(0x66F4F4FA)
-    /** Halo lavande de l'icône. */
-    val Accent = Color(0xFF8C9BFF)
-    /** Lavande éclaircie, vers le blanc du dégradé de l'icône (texte sur fond sombre, survols). */
-    val AccentLight = Color(0xFFC6CDFF)
+    /** Halo lavande de l'icône : l'accent par défaut, avant tout réglage d'apparence. */
+    val Lavender = Color(0xFF8C9BFF)
+    /**
+     * --- Apparence --- accent en cours (lavande, palette ou couleur du fond d'écran).
+     * Lu depuis un état Compose : tout ce qui l'affiche se redessine quand il change.
+     */
+    val Accent: Color get() = AuraAccent.color
+    /** Accent éclairci vers le blanc (texte sur fond sombre, survols). */
+    val AccentLight: Color get() = lerp(AuraAccent.color, Color.White, 0.55f)
     /** Texte posé sur la lavande. */
     val OnAccent = Night
     /** Voile des écrans plein cadre (tiroir, réglages, assistant). */
@@ -73,7 +89,7 @@ object AuraColors {
     val SurfaceRaised = Color(0xFF20202B)
     /** Filet discret (bordures, séparateurs). */
     val Hairline = Color(0x1AF4F4FA)
-    /** Voile en dégradé posé sur le fond d'écran (plus dense en haut et en bas). */
+    /** Voile en dégradé posé sur le fond d'écran (plus dense en haut et en bas) : niveau « Léger », par défaut. */
     val WallpaperVeil = listOf(Color(0x73000000), Color(0x1A000000), Color(0x1A000000), Color(0x8C000000))
     /** Ombre portée du texte posé sur le fond d'écran. */
     val TextShadow = Color(0x8C000000)
@@ -227,11 +243,69 @@ fun ChevronGlyph(color: Color, modifier: Modifier = Modifier, size: Dp = 12.dp) 
     }
 }
 
+// --- Apparence ---
+
+/** Accent en cours, écrit par [AuraTheme]. */
+object AuraAccent {
+    var color by mutableStateOf(AuraColors.Lavender)
+}
+
+/** Apparence en cours (réglages de l'éditeur « Apparence »), fournie par [AuraTheme]. */
+val LocalAppearance = staticCompositionLocalOf { Appearance() }
+
+/**
+ * Accent à afficher. [accent] vaut ACCENT_AUTO ou un indice de palette ; [wallpaperColor] est la
+ * couleur brute du fond d'écran (null si inconnue → lavande).
+ * TODO(thème) : palette de 7 couleurs et couleur du fond d'écran retouchée pour rester lisible.
+ */
+fun resolveAccent(accent: Int, wallpaperColor: Int?): Color = AuraColors.Lavender
+
+/**
+ * Famille de police de l'accueil et du tiroir (les réglages gardent celle du système).
+ * TODO(thème) : Manrope, Instrument Serif, Space Mono depuis res/font.
+ */
+fun fontFamilyFor(choice: FontChoice): FontFamily = FontFamily.SansSerif
+
+/** Police choisie dans l'apparence, pour l'accueil et le tiroir. */
 @Composable
-fun AuraTheme(content: @Composable () -> Unit) {
+fun auraHomeFont(): FontFamily = fontFamilyFor(LocalAppearance.current.font)
+
+/** Applique la police de l'apparence (accueil et tiroir seulement). */
+@Composable
+fun TextStyle.homeFont(): TextStyle = copy(fontFamily = auraHomeFont())
+
+/** Alignement horizontal correspondant (pour Column / Box). */
+fun HomeAlignment.horizontal(): Alignment.Horizontal = when (this) {
+    HomeAlignment.START -> Alignment.Start
+    HomeAlignment.CENTER -> Alignment.CenterHorizontally
+    HomeAlignment.END -> Alignment.End
+}
+
+/** Alignement du texte correspondant (textes sur plusieurs lignes). */
+fun HomeAlignment.textAlign(): TextAlign = when (this) {
+    HomeAlignment.START -> TextAlign.Start
+    HomeAlignment.CENTER -> TextAlign.Center
+    HomeAlignment.END -> TextAlign.End
+}
+
+@Composable
+fun AuraTheme(
+    appearance: Appearance = Appearance(),
+    wallpaperColor: Int? = null,
+    content: @Composable () -> Unit,
+) {
+    val accent = remember(appearance.accent, wallpaperColor) { resolveAccent(appearance.accent, wallpaperColor) }
+    SideEffect { AuraAccent.color = accent }
+    CompositionLocalProvider(LocalAppearance provides appearance) {
+        AuraMaterialTheme(accent, content)
+    }
+}
+
+@Composable
+private fun AuraMaterialTheme(accent: Color, content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = darkColorScheme(
-            primary = AuraColors.Accent,
+            primary = accent,
             onPrimary = AuraColors.OnAccent,
             surface = AuraColors.Surface,
             surfaceContainer = AuraColors.Surface,
