@@ -124,7 +124,7 @@ fun OnboardingScreen(state: LauncherState, actions: LauncherActions) {
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(AuraSpace.m))
-        val finalShape = RoundedCornerShape(AuraRadius.m)
+        val finalShape = auraShape(AuraRadius.m)
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
@@ -152,7 +152,7 @@ private fun StepCard(
     description: String,
     content: @Composable () -> Unit,
 ) {
-    val shape = RoundedCornerShape(AuraRadius.l)
+    val shape = auraShape(AuraRadius.l)
     Column(
         Modifier
             .fillMaxWidth()
@@ -209,7 +209,7 @@ private fun StepMarker(number: Int, done: Boolean) {
 
 @Composable
 private fun StepButton(label: String, secondary: Boolean = false, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(AuraRadius.s)
+    val shape = auraShape(AuraRadius.s)
     Row(horizontalArrangement = Arrangement.Start) {
         Box(
             contentAlignment = Alignment.Center,

@@ -294,7 +294,7 @@ private fun ShortcutsCard(
 ) {
     val app = panel.app
     val dismissDrag = with(LocalDensity.current) { 56.dp.toPx() }
-    val shape = RoundedCornerShape(AuraRadius.xl)
+    val shape = auraShape(AuraRadius.xl)
     // La carte ne dépasse jamais ~80 % de l'écran : au-delà, le contenu défile sous l'en-tête.
     val maxBody = (LocalConfiguration.current.screenHeightDp * 0.8f).dp - 72.dp
 
@@ -497,7 +497,7 @@ private fun TextAction(label: String, color: Color, onClick: () -> Unit) {
         contentAlignment = Alignment.CenterStart,
         modifier = Modifier
             .heightIn(min = AuraSpace.touch)
-            .clip(RoundedCornerShape(AuraRadius.s))
+            .clip(auraShape(AuraRadius.s))
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = AuraSpace.m),
     ) {
@@ -545,7 +545,7 @@ private fun AppWidget(
 ) {
     val density = LocalDensity.current.density
     val view = LocalView.current
-    val widgetShape = RoundedCornerShape(AuraRadius.m)
+    val widgetShape = auraShape(AuraRadius.m)
     val current by rememberUpdatedState(sizing)
     // Hauteur pendant le glissement de la poignée (null = pas de glissement en cours).
     var dragHeight by remember(appWidgetId) { mutableStateOf<Float?>(null) }
@@ -689,7 +689,7 @@ private fun WidgetPicker(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 72.dp)
-                    .clip(RoundedCornerShape(AuraRadius.m))
+                    .clip(auraShape(AuraRadius.m))
                     .background(AuraColors.SurfaceRaised)
                     .padding(AuraSpace.m),
             ) {

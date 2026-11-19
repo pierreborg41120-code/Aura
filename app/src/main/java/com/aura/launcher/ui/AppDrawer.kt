@@ -156,7 +156,7 @@ fun AppDrawer(state: LauncherState, actions: LauncherActions) {
     Box(
         Modifier
             .fillMaxSize()
-            .background(AuraColors.DrawerScrim)
+            .themeBackdrop()
             .systemBarsPadding()
             .imePadding(),
     ) {
@@ -246,7 +246,7 @@ private fun SearchField(value: String, onValueChange: (String) -> Unit, onGo: ()
         tween(AuraMotion.standard),
         label = "contour",
     )
-    val shape = RoundedCornerShape(AuraRadius.m)
+    val shape = auraShape(AuraRadius.m)
     val style = AuraType.row.scaled(textScale).homeFont()
     BasicTextField(
         value = value,

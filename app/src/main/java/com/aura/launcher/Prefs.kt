@@ -188,6 +188,7 @@ class Prefs(context: Context) {
         get() {
             val d = Appearance()
             return Appearance(
+                theme = enumOr(sp.getString("look_theme", null), d.theme),
                 clock = enumOr(sp.getString("look_clock", null), d.clock),
                 font = enumOr(sp.getString("look_font", null), d.font),
                 accent = sp.getInt("look_accent", d.accent).takeIf { it == ACCENT_AUTO || it in 0 until ACCENT_PALETTE_SIZE } ?: d.accent,
@@ -197,6 +198,7 @@ class Prefs(context: Context) {
             )
         }
         set(value) = sp.edit()
+            .putString("look_theme", value.theme.name)
             .putString("look_clock", value.clock.name)
             .putString("look_font", value.font.name)
             .putInt("look_accent", value.accent)

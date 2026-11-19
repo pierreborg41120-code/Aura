@@ -1,5 +1,6 @@
 package com.aura.launcher.ui.settings
 
+import com.aura.launcher.ui.auraShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -129,7 +130,7 @@ private fun Choice(
         ) {
             options.forEach { (name, value) ->
                 val isSelected = value == selected
-                val shape = RoundedCornerShape(AuraRadius.s)
+                val shape = auraShape(AuraRadius.s)
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier

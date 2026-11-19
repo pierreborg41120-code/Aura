@@ -111,7 +111,8 @@ Ne pas le changer, sinon l'utilisateur devra désinstaller Aura et perdra ses fa
 | Météo Open-Meteo, désactivée par défaut, position approximative ou ville (Weather*.kt, ui/WeatherSheet.kt) | ✅ testé, OK |
 | Widget libre sur l'accueil, apps musique aux écouteurs, rotation, haptique (ui/HomeWidget*.kt, HeadphonesWatcher.kt) | ✅ testé, OK |
 | Finitions de design « éclipse » (tokens dans Theme.kt, ombres de texte, A–Z en loupe) | ⏳ à tester |
-| Éditeur « Apparence » : horloges (ui/ClockStyles.kt), polices (res/font), accent Auto/palette, voile, flou du tiroir, alignement (ui/AppearanceEditor.kt, ui/WallpaperLook.kt, Appearance.kt) | ⏳ à tester ; **flou incertain** (fenêtre rendue translucide au 1er flou via setTranslucent) |
+| Thème Néon (onglet Thème de l'éditeur) | ⏳ à tester |
+| Éditeur « Apparence » : horloges (ui/ClockStyles.kt), polices (res/font), accent Auto/palette, voile, flou du tiroir, alignement (ui/AppearanceEditor.kt, ui/WallpaperLook.kt, Appearance.kt) | ✅ premier retour « vraiment pas mal » ; **flou incertain** (fenêtre rendue translucide au 1er flou via setTranslucent) |
 
 Si notifications ou lecteur ne marchent toujours pas : demander une capture du bloc **Diagnostic**
 (Réglages d'Aura → « Notifications et musique ») ; chaque ligne ✓/✗ correspond à une étape.
@@ -122,6 +123,15 @@ Réglages → « Apparence » ouvre l'éditeur (accueil en aperçu en haut, pann
 enregistre, Retour propose d'annuler). Modèle dans `Appearance.kt`, enregistré par `Prefs.appearance`, lu via
 `LocalAppearance` / `AuraAccent` dans Theme.kt (`AuraColors.Accent` est un getter sur un état Compose).
 `homeFont()` = police + facteur de taille, pour l'accueil et le tiroir seulement.
+
+## Thèmes (19/11/2026)
+
+Onglet « Thème » de l'éditeur Apparence. `ThemeId` + préréglage `Appearance.withTheme()` (Appearance.kt) ;
+`ThemeSpec` / `AuraLook.spec` dans Theme.kt : couleurs des surfaces (AuraColors = getters), coins coupés via
+`auraShape()`, lignes de balayage via `Modifier.themeBackdrop()`. Premier thème : **Néon** (jaune #FCEE0A,
+cyan #00E5FF, police Chakra Petch, horloge NEON avec glitch de 180 ms au changement de minute). Thème original,
+« dans l'ambiance » cyberpunk demandée par l'utilisateur : ne jamais reprendre nom, logo ou personnages
+d'une œuvre existante (Cyberpunk Edgerunners…). Ajouter un thème = un ThemeSpec + une ligne dans ThemeTab.
 
 ## Pistes pour la suite (proposées, pas encore faites)
 

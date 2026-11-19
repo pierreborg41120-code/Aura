@@ -128,7 +128,7 @@ fun WeatherSheet(state: LauncherState) {
 private fun WeatherCard(data: WeatherData, fahrenheit: Boolean, place: String?, onClose: () -> Unit) {
     val context = LocalContext.current
     val dismissDrag = with(LocalDensity.current) { 56.dp.toPx() }
-    val shape = RoundedCornerShape(AuraRadius.xl)
+    val shape = auraShape(AuraRadius.xl)
     val maxBody = (LocalConfiguration.current.screenHeightDp * 0.8f).dp - 64.dp
 
     val nowMs = remember(data) { System.currentTimeMillis() }

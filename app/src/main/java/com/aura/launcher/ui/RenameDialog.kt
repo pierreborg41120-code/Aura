@@ -22,7 +22,7 @@ fun RenameDialog(app: AppEntry, onDismiss: () -> Unit, onRename: (String) -> Uni
         containerColor = AuraColors.Surface,
         titleContentColor = AuraColors.Text,
         textContentColor = AuraColors.TextDim,
-        shape = RoundedCornerShape(AuraRadius.xl),
+        shape = auraShape(AuraRadius.xl),
         title = { Text("Renommer", style = AuraType.screenTitle.copy(fontSize = AuraType.favorite.fontSize)) },
         text = {
             OutlinedTextField(
@@ -31,7 +31,7 @@ fun RenameDialog(app: AppEntry, onDismiss: () -> Unit, onRename: (String) -> Uni
                 singleLine = true,
                 textStyle = AuraType.row,
                 placeholder = { Text(app.originalLabel, style = AuraType.row) },
-                shape = RoundedCornerShape(AuraRadius.s),
+                shape = auraShape(AuraRadius.s),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = AuraColors.Text,
                     unfocusedTextColor = AuraColors.Text,
