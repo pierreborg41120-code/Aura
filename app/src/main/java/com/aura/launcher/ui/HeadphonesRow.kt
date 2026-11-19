@@ -61,7 +61,7 @@ fun HeadphonesRow(state: LauncherState, actions: LauncherActions) {
                 Text(
                     "Écouteurs connectés",
                     color = AuraColors.TextDim,
-                    style = AuraType.status.scaled(state.textScale).onWallpaper(),
+                    style = AuraType.status.scaled(state.textScale).homeFont().onWallpaper(),
                     maxLines = 1,
                     modifier = Modifier.weight(1f),
                 )

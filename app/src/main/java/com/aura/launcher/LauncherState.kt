@@ -107,6 +107,16 @@ class LauncherState {
     var headphonePackages by mutableStateOf<List<String>>(emptyList())
     var allowRotation by mutableStateOf(false)
     var hapticsEnabled by mutableStateOf(true)
+
+    // --- Apparence ---
+    /** Apparence affichée. Pendant l'édition, elle change en direct sans être enregistrée. */
+    var appearance by mutableStateOf(Appearance())
+    /** Éditeur « Apparence » ouvert (l'accueil reste visible au-dessus du panneau). */
+    var appearanceEditing by mutableStateOf(false)
+    /** Couleur dominante du fond d'écran (ARGB), null si inconnue. Brute : à retoucher pour la lisibilité. */
+    var wallpaperColor by mutableStateOf<Int?>(null)
+    /** Vrai si le téléphone sait flouter le fond d'écran (Android 12+ et flou activé par le système). */
+    var blurSupported by mutableStateOf(false)
 }
 
 /** Ce que l'interface peut demander à l'activité. */
@@ -216,4 +226,16 @@ interface LauncherActions {
     fun setShowHeadphoneApps(show: Boolean)
     fun setAllowRotation(allow: Boolean)
     fun setHapticsEnabled(enabled: Boolean)
+
+    // --- Apparence ---
+    /** Ouvre l'éditeur (ferme les réglages, l'accueil devient visible). */
+    fun openAppearanceEditor()
+    /** Change l'apparence en direct, sans l'enregistrer. */
+    fun previewAppearance(appearance: Appearance)
+    /** « Terminé » : enregistre l'apparence affichée et ferme l'éditeur. */
+    fun saveAppearance()
+    /** Annule : revient à l'apparence enregistrée et ferme l'éditeur. */
+    fun cancelAppearance()
+    /** Flou du fond d'écran derrière la fenêtre, en pixels (0 = aucun). Sans effet si [LauncherState.blurSupported] est faux. */
+    fun setWallpaperBlur(radiusPx: Int)
 }

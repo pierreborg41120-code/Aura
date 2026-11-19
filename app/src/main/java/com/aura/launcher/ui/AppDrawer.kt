@@ -247,7 +247,7 @@ private fun SearchField(value: String, onValueChange: (String) -> Unit, onGo: ()
         label = "contour",
     )
     val shape = RoundedCornerShape(AuraRadius.m)
-    val style = AuraType.row.scaled(textScale)
+    val style = AuraType.row.scaled(textScale).homeFont()
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
@@ -342,7 +342,7 @@ private fun SearchResults(
     settings: List<SettingsShortcut>,
 ) {
     val iconSize = (34 * state.textScale).dp
-    val rowStyle = AuraType.row.scaled(state.textScale)
+    val rowStyle = AuraType.row.scaled(state.textScale).homeFont()
     LazyColumn(
         contentPadding = PaddingValues(
             start = AuraSpace.gutter,
@@ -496,7 +496,7 @@ private fun AlphabeticalList(state: LauncherState, actions: LauncherActions, app
                         actions = actions,
                         showIcon = state.showIcons,
                         iconSize = (34 * state.textScale).dp,
-                        textStyle = AuraType.row.scaled(state.textScale),
+                        textStyle = AuraType.row.scaled(state.textScale).homeFont(),
                         badge = state.notificationsFor(item.app) != null,
                         menu = drawerMenu(state, actions, item.app),
                     )
@@ -526,7 +526,7 @@ private fun LetterHeader(letter: String) {
             .fillMaxWidth()
             .padding(top = AuraSpace.l + AuraSpace.xs, bottom = AuraSpace.xs),
     ) {
-        Text(text = letter, color = AuraColors.Accent, style = AuraType.letter)
+        Text(text = letter, color = AuraColors.Accent, style = AuraType.letter.homeFont())
         Spacer(Modifier.width(AuraSpace.m))
         Box(
             Modifier
@@ -606,7 +606,7 @@ private fun LetterBar(available: Set<String>, onLetter: (String) -> Unit) {
                 val proximity = (1f - abs(center - touchY) / (slot * 3.5f)).coerceIn(0f, 1f) * active
                 Text(
                     text = letter,
-                    style = AuraType.letterBar,
+                    style = AuraType.letterBar.homeFont(),
                     color = when {
                         letter == selected -> AuraColors.Accent
                         letter in available -> AuraColors.TextDim
@@ -650,7 +650,7 @@ private fun LetterBar(available: Set<String>, onLetter: (String) -> Unit) {
                 Text(
                     shownLetter,
                     color = AuraColors.AccentLight,
-                    style = AuraType.screenTitle.copy(fontWeight = FontWeight.Light),
+                    style = AuraType.screenTitle.copy(fontWeight = FontWeight.Light).homeFont(),
                 )
             }
         }

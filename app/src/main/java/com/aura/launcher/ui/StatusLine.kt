@@ -7,6 +7,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -25,6 +26,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.aura.launcher.BatteryInfo
@@ -41,8 +43,12 @@ import kotlinx.coroutines.delay
 import java.util.Calendar
 import java.util.Date
 
-/** Style commun de la ligne : un cran sous la date, avec l'ombre de lisibilité sur le fond d'écran. */
-private val StatusStyle = AuraType.status.onWallpaper()
+/**
+ * Style commun de la ligne : un cran sous la date, avec l'ombre de lisibilité sur le fond d'écran.
+ * --- Apparence --- composable pour suivre la police choisie.
+ */
+private val StatusStyle: TextStyle
+    @Composable get() = AuraType.status.homeFont().onWallpaper()
 
 /** Espace fine insécable avant « % », à la française. */
 private const val NNBSP = ' '
@@ -59,7 +65,11 @@ fun StatusLine(state: LauncherState, actions: LauncherActions) {
     val weather = state.weather.takeIf { state.weatherEnabled }
     if (battery == null && event == null && weather == null) return
 
-    Column(Modifier.padding(top = AuraSpace.s)) {
+    // --- Apparence --- alignement choisi (gauche, centré, droite).
+    Column(
+        horizontalAlignment = LocalAppearance.current.alignment.horizontal(),
+        modifier = Modifier.fillMaxWidth().padding(top = AuraSpace.s),
+    ) {
         // Batterie et météo partagent la même ligne, séparées par « · ».
         if (battery != null || weather != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {

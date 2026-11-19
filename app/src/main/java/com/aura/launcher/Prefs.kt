@@ -183,6 +183,32 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("haptics", true)
         set(value) = sp.edit().putBoolean("haptics", value).apply()
 
+    // --- Apparence ---
+    var appearance: Appearance
+        get() {
+            val d = Appearance()
+            return Appearance(
+                clock = enumOr(sp.getString("look_clock", null), d.clock),
+                font = enumOr(sp.getString("look_font", null), d.font),
+                accent = sp.getInt("look_accent", d.accent).takeIf { it == ACCENT_AUTO || it in 0 until ACCENT_PALETTE_SIZE } ?: d.accent,
+                veil = enumOr(sp.getString("look_veil", null), d.veil),
+                blurDrawer = sp.getBoolean("look_blur_drawer", d.blurDrawer),
+                alignment = enumOr(sp.getString("look_alignment", null), d.alignment),
+            )
+        }
+        set(value) = sp.edit()
+            .putString("look_clock", value.clock.name)
+            .putString("look_font", value.font.name)
+            .putInt("look_accent", value.accent)
+            .putString("look_veil", value.veil.name)
+            .putBoolean("look_blur_drawer", value.blurDrawer)
+            .putString("look_alignment", value.alignment.name)
+            .apply()
+
+    /** Valeur enregistrée si elle existe encore dans l'enum, sinon [default]. */
+    private inline fun <reified E : Enum<E>> enumOr(name: String?, default: E): E =
+        enumValues<E>().firstOrNull { it.name == name } ?: default
+
     private companion object {
         const val WIDGET_PREFIX = "widget:"
         // « widget_h: » ne commence pas par « widget: » : les deux familles de clés ne se mélangent pas.

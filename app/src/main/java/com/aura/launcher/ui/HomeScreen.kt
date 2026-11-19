@@ -62,7 +62,12 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun HomeScreen(state: LauncherState, actions: LauncherActions) {
+fun HomeScreen(
+    state: LauncherState,
+    actions: LauncherActions,
+    // --- Apparence --- aperçu dans l'éditeur : l'accueil est affiché mais ne réagit à aucun geste.
+    preview: Boolean = false,
+) {
     val density = LocalDensity.current
     val swipeThreshold = with(density) { 72.dp.toPx() }
     val haptics = LocalHapticFeedback.current
@@ -99,6 +104,7 @@ fun HomeScreen(state: LauncherState, actions: LauncherActions) {
         Modifier
             .fillMaxSize()
             .onGloballyPositioned { homeOrigin = it.positionInRoot() }
+            .then(if (preview) Modifier.blockGestures() else Modifier)
             // Glisser vers le haut : toutes les apps. Vers le bas : notifications.
             .pointerInputVerticalSwipe(
                 threshold = swipeThreshold,
@@ -124,7 +130,8 @@ fun HomeScreen(state: LauncherState, actions: LauncherActions) {
             .padding(horizontal = AuraSpace.gutter),
     ) {
         Spacer(Modifier.height(AuraSpace.xxxl + AuraSpace.l))
-        Clock(actions)
+        // --- Apparence --- style d'horloge choisi (ui/ClockStyles.kt).
+        AuraClock(LocalAppearance.current.clock, LocalAppearance.current.alignment, actions)
         StatusLine(state, actions)
         // --- Accueil --- widget libre « sous l'heure ».
         if (state.homeWidgetPosition == HOME_WIDGET_UNDER_CLOCK && state.homeWidgetId != null) {
@@ -147,11 +154,15 @@ fun HomeScreen(state: LauncherState, actions: LauncherActions) {
         }
 
         val favorites = state.favoriteApps
+        // --- Apparence --- alignement et police choisis pour l'accueil.
+        val alignment = LocalAppearance.current.alignment
         if (favorites.isEmpty()) {
             Text(
                 text = "Glisse vers le haut pour voir tes apps,\npuis appui long sur une app pour l'épingler ici.",
                 color = AuraColors.TextDim,
-                style = AuraType.body.onWallpaper(),
+                style = AuraType.body.homeFont().onWallpaper(),
+                textAlign = alignment.textAlign(),
+                modifier = Modifier.fillMaxWidth(),
             )
         } else {
             favorites.forEachIndexed { index, app ->
@@ -161,7 +172,8 @@ fun HomeScreen(state: LauncherState, actions: LauncherActions) {
                     actions = actions,
                     showIcon = state.showIcons,
                     iconSize = (30 * state.textScale).dp,
-                    textStyle = AuraType.favorite.scaled(state.textScale).onWallpaper(),
+                    textStyle = AuraType.favorite.scaled(state.textScale).homeFont().onWallpaper(),
+                    alignment = alignment,
                     verticalPadding = AuraSpace.s + AuraSpace.xxs,
                     badge = notif != null,
                     subtitle = if (state.showNotificationPreviews) notif?.preview else null,
@@ -246,50 +258,17 @@ private fun DrawerHint(reducedMotion: Boolean, onClick: () -> Unit) {
     }
 }
 
-@Composable
-private fun Clock(actions: LauncherActions) {
-    val context = LocalContext.current
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-
-    // Se met à jour pile au changement de minute.
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = System.currentTimeMillis()
-            delay(60_000 - now % 60_000)
+/** Avale tous les touchers (aperçu de l'éditeur « Apparence »). */
+private fun Modifier.blockGestures(): Modifier = this.then(
+    Modifier.pointerInput("block") {
+        awaitPointerEventScope {
+            while (true) {
+                awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                    .changes.forEach { it.consume() }
+            }
         }
-    }
-
-    val time = DateFormat.getTimeFormat(context).format(Date(now))
-    val date = SimpleDateFormat("EEEE d MMMM", Locale.getDefault())
-        .format(Date(now))
-        .replaceFirstChar { it.titlecase(Locale.getDefault()) }
-
-    Column(horizontalAlignment = Alignment.Start) {
-        Text(
-            text = time,
-            color = AuraColors.Text,
-            style = AuraType.clock.onWallpaper(AuraShadow.wide),
-            modifier = Modifier
-                // Les chiffres fins ont une approche à gauche : on recolle visuellement à la marge.
-                .graphicsLayer { translationX = -2.dp.toPx() }
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                ) { actions.openAlarms() },
-        )
-        Text(
-            text = date,
-            color = AuraColors.TextDim,
-            style = AuraType.date.onWallpaper(),
-            modifier = Modifier
-                .padding(top = AuraSpace.xxs)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                ) { actions.openCalendar() },
-        )
-    }
-}
+    },
+)
 
 private fun Modifier.pointerInputVerticalSwipe(
     threshold: Float,

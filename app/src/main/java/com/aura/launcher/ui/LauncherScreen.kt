@@ -2,6 +2,11 @@ package com.aura.launcher.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.ui.Alignment
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -10,7 +15,10 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -23,6 +31,8 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
     BackHandler(enabled = true) {
         when {
             state.renaming != null -> state.renaming = null
+            // --- Apparence --- (l'éditeur peut intercepter Retour avant pour proposer d'annuler)
+            state.appearanceEditing -> actions.cancelAppearance()
             state.onboardingOpen -> actions.finishOnboarding()
             state.settingsOpen -> state.settingsOpen = false
             state.drawerOpen -> state.drawerOpen = false
@@ -36,11 +46,35 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
             // (plus marqué en haut, sous l'heure, et en bas, sous les favoris ; l'ombre de texte fait le reste).
             .background(
                 Brush.verticalGradient(
-                    AuraColors.WallpaperVeil,
+                    // --- Apparence --- niveau de voile choisi (ui/WallpaperLook.kt).
+                    wallpaperVeil(LocalAppearance.current.veil),
                 ),
             ),
     ) {
-        HomeScreen(state, actions)
+        // --- Apparence --- flou du fond d'écran à l'ouverture du tiroir.
+        DrawerBlurEffect(state, actions)
+
+        // --- Apparence --- pendant l'édition, l'accueil (en aperçu) se resserre au-dessus du panneau,
+        // qui monte depuis le bas ; à la fermeture, le panneau redescend et l'accueil reprend sa place.
+        val reducedMotion = rememberReducedMotion()
+        Column(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
+                HomeScreen(state, actions, preview = state.appearanceEditing)
+            }
+            AnimatedVisibility(
+                visible = state.appearanceEditing,
+                enter = if (reducedMotion) EnterTransition.None
+                else expandVertically(tween(AuraMotion.gentle, easing = AuraMotion.enter), expandFrom = Alignment.Top) +
+                    slideInVertically(tween(AuraMotion.gentle, easing = AuraMotion.enter)) { it } +
+                    fadeIn(tween(AuraMotion.standard)),
+                exit = if (reducedMotion) ExitTransition.None
+                else shrinkVertically(tween(AuraMotion.standard, easing = AuraMotion.exit), shrinkTowards = Alignment.Top) +
+                    slideOutVertically(tween(AuraMotion.standard, easing = AuraMotion.exit)) { it } +
+                    fadeOut(tween(AuraMotion.standard)),
+            ) {
+                AppearanceEditor(state, actions)
+            }
+        }
 
         AnimatedVisibility(
             visible = state.drawerOpen,
