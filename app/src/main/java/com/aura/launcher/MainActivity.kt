@@ -1215,12 +1215,18 @@ class MainActivity : ComponentActivity(), LauncherActions {
     }
 
     private var currentBlur = 0
+    private var translucentForBlur = false
 
     override fun setWallpaperBlur(radiusPx: Int) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
         val radius = if (state.blurSupported) radiusPx.coerceAtLeast(0) else 0
         if (radius == currentBlur) return
         currentBlur = radius
+        // Le flou d'arrière-plan ne se voit que sur une fenêtre translucide. On ne le devient qu'au
+        // premier flou demandé (réglage coupé par défaut), pour ne rien changer aux autres.
+        if (radius > 0 && !translucentForBlur) {
+            translucentForBlur = setTranslucent(true)
+        }
         window.setBackgroundBlurRadius(radius)
     }
 

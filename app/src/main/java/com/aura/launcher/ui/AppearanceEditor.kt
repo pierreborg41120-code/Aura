@@ -1,15 +1,11 @@
 package com.aura.launcher.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -86,25 +82,19 @@ fun AppearanceEditor(state: LauncherState, actions: LauncherActions) {
     val reduced = rememberReducedMotion()
 
     // Prioritaire sur celui de LauncherScreen (composé après lui).
-    BackHandler(enabled = true) {
+    // Désactivé pendant l'animation de sortie (l'éditeur est déjà fermé).
+    BackHandler(enabled = state.appearanceEditing) {
         if (state.appearance != initial) confirmCancel = true else actions.cancelAppearance()
     }
 
-    // Le panneau glisse depuis le bas à l'ouverture (directement en place si les animations sont coupées).
-    val visible = remember { MutableTransitionState(reduced) }.apply { targetState = true }
-    AnimatedVisibility(
-        visibleState = visible,
-        enter = slideInVertically(tween(AuraMotion.gentle, easing = AuraMotion.enter)) { it } +
-            fadeIn(tween(AuraMotion.standard)),
-    ) {
-        EditorPanel(
-            state = state,
-            reduced = reduced,
-            onChange = { actions.previewAppearance(it) },
-            onDone = { actions.saveAppearance() },
-            onCancel = { actions.cancelAppearance() },
-        )
-    }
+    // L'entrée et la sortie du panneau sont animées par LauncherScreen.
+    EditorPanel(
+        state = state,
+        reduced = reduced,
+        onChange = { actions.previewAppearance(it) },
+        onDone = { actions.saveAppearance() },
+        onCancel = { actions.cancelAppearance() },
+    )
 
     if (confirmCancel) {
         AlertDialog(

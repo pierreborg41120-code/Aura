@@ -2,6 +2,11 @@ package com.aura.launcher.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.ui.Alignment
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -49,16 +54,26 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
         // --- Apparence --- flou du fond d'écran à l'ouverture du tiroir.
         DrawerBlurEffect(state, actions)
 
-        if (state.appearanceEditing) {
-            // L'accueil, en aperçu, au-dessus du panneau de l'éditeur.
-            Column(Modifier.fillMaxSize()) {
-                Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
-                    HomeScreen(state, actions, preview = true)
-                }
+        // --- Apparence --- pendant l'édition, l'accueil (en aperçu) se resserre au-dessus du panneau,
+        // qui monte depuis le bas ; à la fermeture, le panneau redescend et l'accueil reprend sa place.
+        val reducedMotion = rememberReducedMotion()
+        Column(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
+                HomeScreen(state, actions, preview = state.appearanceEditing)
+            }
+            AnimatedVisibility(
+                visible = state.appearanceEditing,
+                enter = if (reducedMotion) EnterTransition.None
+                else expandVertically(tween(AuraMotion.gentle, easing = AuraMotion.enter), expandFrom = Alignment.Top) +
+                    slideInVertically(tween(AuraMotion.gentle, easing = AuraMotion.enter)) { it } +
+                    fadeIn(tween(AuraMotion.standard)),
+                exit = if (reducedMotion) ExitTransition.None
+                else shrinkVertically(tween(AuraMotion.standard, easing = AuraMotion.exit), shrinkTowards = Alignment.Top) +
+                    slideOutVertically(tween(AuraMotion.standard, easing = AuraMotion.exit)) { it } +
+                    fadeOut(tween(AuraMotion.standard)),
+            ) {
                 AppearanceEditor(state, actions)
             }
-        } else {
-            HomeScreen(state, actions)
         }
 
         AnimatedVisibility(
