@@ -325,11 +325,10 @@ private fun Modifier.pointerInputHorizontalSwipe(
     },
 )
 
-/** --- Limiteur --- entrée de menu « Limiter » / « Ne plus limiter ». */
-fun limiterMenu(state: LauncherState, actions: LauncherActions, app: com.aura.launcher.AppEntry): MenuAction {
-    val limited = app.key in state.limitedApps
-    return MenuAction(if (limited) "Ne plus limiter" else "Limiter") { actions.setLimited(app, !limited) }
-}
+/** --- Limiteur --- entrée de menu « Limiter… » (ouvre le choix : pause, durée par jour, aucune). */
+@Suppress("UNUSED_PARAMETER")
+fun limiterMenu(state: LauncherState, actions: LauncherActions, app: com.aura.launcher.AppEntry): MenuAction =
+    MenuAction("Limiter…") { state.limitChoosing = app }
 
 private fun Modifier.pointerInputVerticalSwipe(
     threshold: Float,

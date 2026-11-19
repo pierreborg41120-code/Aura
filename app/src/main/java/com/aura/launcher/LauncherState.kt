@@ -56,6 +56,12 @@ class LauncherState {
     var pendingLimited by mutableStateOf<AppEntry?>(null)
     /** Ouvertures du jour de [pendingLimited]. */
     var pendingLimitedCount by mutableStateOf(0)
+    /** Vrai : l'écran de pause dit « Temps écoulé » (limite de durée) au lieu de proposer une pause. */
+    var pendingTimeUp by mutableStateOf(false)
+    /** Limites de durée par jour : paquet → minutes. */
+    var appLimits by mutableStateOf<Map<String, Int>>(emptyMap())
+    /** App dont on choisit la limite (boîte « Limiter »). */
+    var limitChoosing by mutableStateOf<AppEntry?>(null)
 
     // --- Gestes ---
     var gestureActions by mutableStateOf<Map<Gesture, String>>(emptyMap())
@@ -280,6 +286,10 @@ interface LauncherActions {
     fun setLimited(app: AppEntry, limited: Boolean)
     /** Ouvre l'app sans passer par la pause (« Ouvrir quand même »). */
     fun launchAnyway(app: AppEntry)
+    /** Limite de durée par jour (minutes) ; null = pas de limite de durée. */
+    fun setAppLimit(app: AppEntry, minutes: Int?)
+    /** « Encore 5 minutes » puis ouvre l'app. */
+    fun grantMoreTime(app: AppEntry)
 
     // --- Gestes ---
     fun setGestureAction(gesture: Gesture, action: String)

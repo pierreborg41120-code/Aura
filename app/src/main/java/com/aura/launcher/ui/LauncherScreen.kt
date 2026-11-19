@@ -32,6 +32,7 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
         when {
             state.renaming != null -> state.renaming = null
             // --- Limiteur / récap ---
+            state.limitChoosing != null -> state.limitChoosing = null
             state.pendingLimited != null -> state.pendingLimited = null
             state.recapOpen -> state.recapOpen = false
             // --- Dossiers ---
@@ -146,7 +147,8 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
             HomeWidgetPicker(state, actions)
         }
 
-        // --- Limiteur --- écran de pause, par-dessus tout le reste.
+        // --- Limiteur --- choix de la limite, puis écran de pause par-dessus tout le reste.
+        LimitDialog(state, actions)
         LimiterPause(state, actions)
     }
 }
