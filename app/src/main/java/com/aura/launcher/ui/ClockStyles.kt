@@ -119,7 +119,7 @@ fun AuraClock(style: ClockStyle, alignment: HomeAlignment, actions: LauncherActi
             }
 
             ClockStyle.STACKED -> {
-                val cal = Calendar.getInstance().apply { time = date }
+                val cal = Calendar.getInstance().also { it.time = date }
                 val hour24 = cal.get(Calendar.HOUR_OF_DAY)
                 val hours = if (is24h) "%02d".format(locale, hour24)
                 else (if (hour24 % 12 == 0) 12 else hour24 % 12).toString()
@@ -150,7 +150,7 @@ fun AuraClock(style: ClockStyle, alignment: HomeAlignment, actions: LauncherActi
             }
 
             ClockStyle.WORDS -> {
-                val cal = Calendar.getInstance().apply { time = date }
+                val cal = Calendar.getInstance().also { it.time = date }
                 val (hourPart, minutePart) = frenchTimeWordsParts(
                     cal.get(Calendar.HOUR_OF_DAY),
                     cal.get(Calendar.MINUTE),
