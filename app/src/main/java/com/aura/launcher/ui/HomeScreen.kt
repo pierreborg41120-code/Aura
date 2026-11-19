@@ -153,7 +153,8 @@ fun HomeScreen(
             Spacer(Modifier.height(AuraSpace.l))
         }
 
-        val favorites = state.favoriteApps
+        // --- Dossiers --- l'accueil mêle apps épinglées et dossiers.
+        val favorites = state.homeItems
         // --- Apparence --- alignement et police choisis pour l'accueil.
         val alignment = LocalAppearance.current.alignment
         if (favorites.isEmpty()) {
@@ -165,7 +166,26 @@ fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
         } else {
-            favorites.forEachIndexed { index, app ->
+            favorites.forEachIndexed { index, item ->
+                if (item is com.aura.launcher.HomeItem.Group) {
+                    FolderRow(
+                        group = item,
+                        state = state,
+                        actions = actions,
+                        showIcon = state.showIcons,
+                        iconSize = (30 * state.textScale).dp,
+                        textStyle = AuraType.favorite.scaled(state.textScale).homeFont().onWallpaper(),
+                        alignment = alignment,
+                        menu = buildList {
+                            if (index > 0) add(MenuAction("Monter") { actions.moveHomeItem(item.key, -1) })
+                            if (index < favorites.lastIndex) add(MenuAction("Descendre") { actions.moveHomeItem(item.key, +1) })
+                            add(MenuAction("Renommer le dossier") { state.renamingFolder = item.folder })
+                            add(MenuAction("Supprimer le dossier") { actions.deleteFolder(item.folder.id) })
+                        },
+                    )
+                    return@forEachIndexed
+                }
+                val app = (item as com.aura.launcher.HomeItem.App).app
                 val notif = state.notificationsFor(app)
                 AppRow(
                     app = app,
@@ -191,6 +211,7 @@ fun HomeScreen(
                         if (index > 0) add(MenuAction("Monter") { actions.moveFavorite(app, -1) })
                         if (index < favorites.lastIndex) add(MenuAction("Descendre") { actions.moveFavorite(app, +1) })
                         add(MenuAction("Retirer de l'accueil") { actions.toggleFavorite(app) })
+                        add(MenuAction("Ajouter à un dossier…") { state.folderPicking = app })
                         add(MenuAction("Renommer") { state.renaming = app })
                         add(MenuAction("Infos de l'app") { actions.openAppInfo(app) })
                         add(MenuAction("Désinstaller") { actions.uninstall(app) })

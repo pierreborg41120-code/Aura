@@ -183,6 +183,72 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("haptics", true)
         set(value) = sp.edit().putBoolean("haptics", value).apply()
 
+    // --- Dossiers ---
+    var folders: List<Folder>
+        get() = foldersFromJson(sp.getString("folders", null))
+        set(value) = sp.edit().putString("folders", foldersToJson(value)).apply()
+
+    // --- Sauvegarde ---
+    /**
+     * Tous les réglages sous forme de JSON, sauf ce qui est propre à ce téléphone (widgets, liés à
+     * l'hôte de widgets local), le cache météo et l'assistant (à refaire sur un nouveau téléphone).
+     */
+    fun exportJson(): String {
+        val values = org.json.JSONObject()
+        sp.all.filterKeys(::isExportable).forEach { (k, v) ->
+            val entry = when (v) {
+                is String -> org.json.JSONObject().put("t", "s").put("v", v)
+                is Boolean -> org.json.JSONObject().put("t", "b").put("v", v)
+                is Int -> org.json.JSONObject().put("t", "i").put("v", v)
+                is Long -> org.json.JSONObject().put("t", "l").put("v", v)
+                is Float -> org.json.JSONObject().put("t", "f").put("v", v.toDouble())
+                is Set<*> -> org.json.JSONObject().put("t", "set").put("v", org.json.JSONArray(v.map { it.toString() }))
+                else -> null
+            }
+            entry?.let { values.put(k, it) }
+        }
+        return org.json.JSONObject()
+            .put("app", BACKUP_APP)
+            .put("version", BACKUP_VERSION)
+            .put("prefs", values)
+            .toString(2)
+    }
+
+    /** Remplace les réglages par ceux de la sauvegarde. Faux si le fichier n'est pas une sauvegarde d'Aura. */
+    fun importJson(json: String): Boolean {
+        val root = try {
+            org.json.JSONObject(json)
+        } catch (e: Exception) {
+            return false
+        }
+        if (root.optString("app") != BACKUP_APP) return false
+        val values = root.optJSONObject("prefs") ?: return false
+        val editor = sp.edit()
+        sp.all.keys.filter(::isExportable).forEach(editor::remove)
+        values.keys().forEach { k ->
+            if (!isExportable(k)) return@forEach
+            val e = values.optJSONObject(k) ?: return@forEach
+            when (e.optString("t")) {
+                "s" -> editor.putString(k, e.optString("v"))
+                "b" -> editor.putBoolean(k, e.optBoolean("v"))
+                "i" -> editor.putInt(k, e.optInt("v"))
+                "l" -> editor.putLong(k, e.optLong("v"))
+                "f" -> editor.putFloat(k, e.optDouble("v").toFloat())
+                "set" -> {
+                    val a = e.optJSONArray("v") ?: org.json.JSONArray()
+                    editor.putStringSet(k, (0 until a.length()).map { a.getString(it) }.toSet())
+                }
+            }
+        }
+        // Écriture immédiate : l'activité redémarre juste après.
+        return editor.commit()
+    }
+
+    private fun isExportable(key: String): Boolean =
+        !key.startsWith(WIDGET_PREFIX) && !key.startsWith(WIDGET_HEIGHT_PREFIX) &&
+            !key.startsWith("home_widget_") && key != "weather_cache" && key != "weather_fetched_at" &&
+            key != KEY_ONBOARDING_DONE
+
     // --- Apparence ---
     var appearance: Appearance
         get() {
@@ -228,6 +294,8 @@ class Prefs(context: Context) {
         const val KEY_ONBOARDING_DONE = "onboarding_done"
         const val LABEL_PREFIX = "label:"
         const val SEP = "\n"
+        const val BACKUP_APP = "aura"
+        const val BACKUP_VERSION = 1
     }
 }
 

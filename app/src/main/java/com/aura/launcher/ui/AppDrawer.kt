@@ -406,6 +406,8 @@ private fun drawerMenu(state: LauncherState, actions: LauncherActions, app: AppE
     MenuAction(if (app.key in state.favorites) "Retirer de l'accueil" else "Épingler à l'accueil") {
         actions.toggleFavorite(app)
     },
+    // --- Dossiers ---
+    MenuAction("Ajouter à un dossier…") { state.folderPicking = app },
     MenuAction("Renommer") { state.renaming = app },
     MenuAction("Masquer") { actions.setHidden(app.key, true) },
     MenuAction("Infos de l'app") { actions.openAppInfo(app) },

@@ -31,6 +31,10 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
     BackHandler(enabled = true) {
         when {
             state.renaming != null -> state.renaming = null
+            // --- Dossiers ---
+            state.folderPicking != null -> state.folderPicking = null
+            state.renamingFolder != null -> state.renamingFolder = null
+            state.openFolder != null -> state.openFolder = null
             // --- Apparence --- (l'éditeur peut intercepter Retour avant pour proposer d'annuler)
             state.appearanceEditing -> actions.cancelAppearance()
             state.onboardingOpen -> actions.finishOnboarding()
@@ -103,6 +107,11 @@ fun LauncherScreen(state: LauncherState, actions: LauncherActions) {
         ) {
             OnboardingScreen(state, actions)
         }
+
+        // --- Dossiers --- fenêtre du dossier ouvert, puis ses boîtes de dialogue.
+        FolderSheet(state, actions)
+        AddToFolderDialog(state, actions)
+        RenameFolderDialog(state, actions)
 
         state.renaming?.let { app ->
             RenameDialog(
