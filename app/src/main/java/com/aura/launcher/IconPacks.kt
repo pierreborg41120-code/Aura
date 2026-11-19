@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.graphics.drawable.Drawable
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 
@@ -15,7 +17,12 @@ import org.xmlpull.v1.XmlPullParserFactory
  * associe chaque activité d'app (ComponentInfo{paquet/classe}) au nom d'une image du pack.
  */
 
-data class IconPackInfo(val packageName: String, val label: String)
+/** Pack installé : paquet, nom et logo (son icône d'app, null si illisible). */
+data class IconPackInfo(
+    val packageName: String,
+    val label: String,
+    val icon: androidx.compose.ui.graphics.ImageBitmap? = null,
+)
 
 class IconPacks(private val context: Context) {
 
@@ -37,7 +44,15 @@ class IconPacks(private val context: Context) {
         }
             .map { it.activityInfo.packageName to it }
             .distinctBy { it.first }
-            .map { (pkg, info) -> IconPackInfo(pkg, info.loadLabel(pm).toString()) }
+            .map { (pkg, info) ->
+                val logo = try {
+                    val px = (40 * context.resources.displayMetrics.density).toInt()
+                    info.loadIcon(pm).toBitmap(px, px, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
+                } catch (e: Exception) {
+                    null
+                }
+                IconPackInfo(pkg, info.loadLabel(pm).toString(), logo)
+            }
             .sortedBy { it.label.lowercase() }
 
     /** Image du pack pour cette activité, ou null si le pack ne la prévoit pas. À appeler hors du thread principal. */
