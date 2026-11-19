@@ -112,8 +112,8 @@ Ne pas le changer, sinon l'utilisateur devra désinstaller Aura et perdra ses fa
 | Widget libre sur l'accueil, apps musique aux écouteurs, rotation, haptique (ui/HomeWidget*.kt, HeadphonesWatcher.kt) | ✅ testé, OK |
 | Finitions de design « éclipse » (tokens dans Theme.kt, ombres de texte, A–Z en loupe) | ✅ testé, OK |
 | Thème Néon (onglet Thème de l'éditeur) | ✅ testé, OK |
-| Dossiers sur l'accueil (Folders.kt, ui/Folders.kt ; clé « folder:<id> » dans les favoris) | ⏳ à tester |
-| Sauvegarde / restauration des réglages en JSON (Prefs.exportJson/importJson, ui/settings/BackupSettings.kt ; sans widgets ni cache météo) | ⏳ à tester |
+| Dossiers sur l'accueil (Folders.kt, ui/Folders.kt ; clé « folder:<id> » dans les favoris) | ✅ testé, OK |
+| Sauvegarde / restauration des réglages en JSON (Prefs.exportJson/importJson, ui/settings/BackupSettings.kt ; sans widgets ni cache météo) | ✅ testé, OK (import compris) |
 | Icônes : « Thème » (ThemedIcons.kt : silhouette monochrome Android 13 / calque adaptatif / silhouette calculée, dans un cadre du thème) et packs installés (IconPacks.kt, appfilter.xml, logo du pack dans sa carte) — onglet Icônes | ✅ testé, « tout fonctionne nickel » |
 | Éditeur « Apparence » : horloges (ui/ClockStyles.kt), polices (res/font), accent Auto/palette, voile, flou du tiroir, alignement (ui/AppearanceEditor.kt, ui/WallpaperLook.kt, Appearance.kt) | ✅ testé, OK (flou compris ; fenêtre rendue translucide au 1er flou via setTranslucent) |
 
