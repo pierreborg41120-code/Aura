@@ -73,6 +73,9 @@ class MainActivity : ComponentActivity(), LauncherActions {
 
         state.favorites = prefs.favorites
         state.folders = prefs.folders // --- Dossiers ---
+        state.notifRecap = prefs.notifRecap // --- Récap des notifications ---
+        state.limitedApps = prefs.limitedApps // --- Limiteur ---
+        state.gestureActions = prefs.gestureActions // --- Gestes ---
         state.hidden = prefs.hidden
         state.showIcons = prefs.showIcons
         state.autoLaunch = prefs.autoLaunch
@@ -231,6 +234,17 @@ class MainActivity : ComponentActivity(), LauncherActions {
     // --- LauncherActions ---
 
     override fun launch(app: AppEntry) {
+        // --- Limiteur --- une app limitée passe d'abord par l'écran de pause.
+        if (app.key in state.limitedApps) {
+            state.pendingLimitedCount = usage.todayCount(app.key)
+            state.pendingLimited = app
+            return
+        }
+        launchAnyway(app)
+    }
+
+    override fun launchAnyway(app: AppEntry) {
+        state.pendingLimited = null
         try {
             getSystemService(LauncherApps::class.java)
                 .startMainActivity(app.component, app.user, null, null)
@@ -288,6 +302,50 @@ class MainActivity : ComponentActivity(), LauncherActions {
     private fun saveFavorites(list: List<String>) {
         state.favorites = list
         prefs.favorites = list
+    }
+
+    // --- Récap des notifications ---
+
+    override fun setNotifRecap(enabled: Boolean) {
+        state.notifRecap = enabled
+        prefs.notifRecap = enabled
+    }
+
+    override fun dismissAllNotifications() {
+        state.notifications.values.flatMap { it.items }.forEach { NotificationStore.dismiss(it.key) }
+        state.recapOpen = false
+    }
+
+    // --- Limiteur ---
+
+    override fun setLimited(app: AppEntry, limited: Boolean) {
+        state.limitedApps = if (limited) state.limitedApps + app.key else state.limitedApps - app.key
+        prefs.limitedApps = state.limitedApps
+    }
+
+    // --- Gestes ---
+
+    override fun setGestureAction(gesture: Gesture, action: String) {
+        state.gestureActions = state.gestureActions + (gesture to action)
+        prefs.gestureActions = state.gestureActions
+    }
+
+    override fun performGesture(gesture: Gesture) {
+        val action = state.gestureActions[gesture] ?: GestureAction.default(gesture)
+        when {
+            action == GestureAction.NOTIFICATIONS -> expandNotifications()
+            action == GestureAction.LOCK -> lockScreen()
+            action == GestureAction.SEARCH -> {
+                state.focusSearch = true
+                state.drawerOpen = true
+            }
+            action == GestureAction.DRAWER -> state.drawerOpen = true
+            action.startsWith(GestureAction.APP_PREFIX) -> {
+                val key = action.removePrefix(GestureAction.APP_PREFIX)
+                val app = state.apps.firstOrNull { it.key == key }
+                if (app != null) launch(app) else toast("Cette app n'est plus installée")
+            }
+        }
     }
 
     // --- Dossiers ---

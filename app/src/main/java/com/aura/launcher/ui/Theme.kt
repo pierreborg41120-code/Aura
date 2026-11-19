@@ -135,6 +135,10 @@ data class ThemeSpec(
     val cutCorners: Boolean,
     /** Fines lignes de balayage (immobiles) sur les écrans plein cadre. */
     val scanlines: Boolean,
+    /** Coins presque droits (Terminal). Prioritaire sur [cutCorners]. */
+    val squareCorners: Boolean = false,
+    /** Couleur des lignes de balayage. */
+    val scanlineColor: Color = Color(0xFF00E5FF),
 )
 
 /** « Éclipse » : le thème d'origine (valeurs inchangées). */
@@ -180,9 +184,51 @@ val NeonSpec = ThemeSpec(
     scanlines = true,
 )
 
+/** « Terminal » : vert phosphore sur noir, coins droits, lignes de balayage vertes. */
+val TerminalSpec = ThemeSpec(
+    id = ThemeId.TERMINAL,
+    night = Color(0xFF040805),
+    text = Color(0xFFD2FFDB),
+    textDim = Color(0xB3D2FFDB),
+    textFaint = Color(0x66D2FFDB),
+    drawerScrim = Color(0xF4040805),
+    sheetScrim = Color(0xA6020402),
+    surface = Color(0xFF09130C),
+    surfaceRaised = Color(0xFF0F1F14),
+    hairline = Color(0x4033FF66),
+    textShadow = Color(0xA6000000),
+    themeAccent = Color(0xFF33FF66),
+    secondary = Color(0xFF9DFFB4),
+    cutCorners = false,
+    scanlines = true,
+    squareCorners = true,
+    scanlineColor = Color(0xFF33FF66),
+)
+
+/** « Aube » : nuit chaude, accent pêche, détails rose, grands arrondis. */
+val AubeSpec = ThemeSpec(
+    id = ThemeId.AUBE,
+    night = Color(0xFF150D10),
+    text = Color(0xFFFFF2EB),
+    textDim = Color(0xB3FFF2EB),
+    textFaint = Color(0x66FFF2EB),
+    drawerScrim = Color(0xF0150D10),
+    sheetScrim = Color(0x8C0A0507),
+    surface = Color(0xFF22161A),
+    surfaceRaised = Color(0xFF2E1E23),
+    hairline = Color(0x24FFD9C7),
+    textShadow = Color(0x8C000000),
+    themeAccent = Color(0xFFFFAB8C),
+    secondary = Color(0xFFF7A6C6),
+    cutCorners = false,
+    scanlines = false,
+)
+
 fun specFor(theme: ThemeId): ThemeSpec = when (theme) {
     ThemeId.ECLIPSE -> EclipseSpec
     ThemeId.NEON -> NeonSpec
+    ThemeId.TERMINAL -> TerminalSpec
+    ThemeId.AUBE -> AubeSpec
 }
 
 /** Thème en cours, écrit par [AuraTheme]. */
@@ -191,12 +237,17 @@ object AuraLook {
 }
 
 /** Forme d'une surface : arrondie (Éclipse) ou en biseau (Néon). Le biseau est plus petit que l'arrondi. */
-fun auraShape(radius: Dp): CornerBasedShape =
-    if (AuraLook.spec.cutCorners) CutCornerShape(radius * 0.45f) else RoundedCornerShape(radius)
+fun auraShape(radius: Dp): CornerBasedShape = when {
+    AuraLook.spec.squareCorners -> RoundedCornerShape(radius * 0.12f)
+    AuraLook.spec.cutCorners -> CutCornerShape(radius * 0.45f)
+    else -> RoundedCornerShape(radius)
+}
 
-fun auraShape(topStart: Dp = 0.dp, topEnd: Dp = 0.dp): CornerBasedShape =
-    if (AuraLook.spec.cutCorners) CutCornerShape(topStart = topStart * 0.45f, topEnd = topEnd * 0.45f)
-    else RoundedCornerShape(topStart = topStart, topEnd = topEnd)
+fun auraShape(topStart: Dp = 0.dp, topEnd: Dp = 0.dp): CornerBasedShape = when {
+    AuraLook.spec.squareCorners -> RoundedCornerShape(topStart = topStart * 0.12f, topEnd = topEnd * 0.12f)
+    AuraLook.spec.cutCorners -> CutCornerShape(topStart = topStart * 0.45f, topEnd = topEnd * 0.45f)
+    else -> RoundedCornerShape(topStart = topStart, topEnd = topEnd)
+}
 
 /**
  * Fond des écrans plein cadre (tiroir, réglages…) : le voile du thème, plus de fines lignes de
@@ -207,7 +258,7 @@ fun Modifier.themeBackdrop(): Modifier = this
     .drawBehind {
         if (AuraLook.spec.scanlines) {
             val step = 3.dp.toPx()
-            val line = NeonCyan.copy(alpha = 0.035f)
+            val line = AuraLook.spec.scanlineColor.copy(alpha = 0.035f)
             var y = 0f
             while (y < size.height) {
                 drawLine(line, Offset(0f, y), Offset(size.width, y), strokeWidth = 1f)
@@ -337,6 +388,7 @@ fun rememberIconLook(): com.aura.launcher.IconLook {
             line = AuraColors.Secondary.toArgb(),
             frame = AuraColors.Surface.toArgb(),
             cutCorners = AuraLook.spec.cutCorners,
+            squareCorners = AuraLook.spec.squareCorners,
         )
     }
 }

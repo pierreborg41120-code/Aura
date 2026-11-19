@@ -29,6 +29,23 @@ fun NotificationSettings(state: LauncherState, actions: LauncherActions) {
     if (!state.hasNotificationAccess) return
     val checked = state.replyFromHome
     Column(Modifier.fillMaxWidth()) {
+        // --- Récap des notifications ---
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+                .clickable(role = Role.Switch) { actions.setNotifRecap(!state.notifRecap) }
+                .padding(vertical = AuraSpace.s),
+        ) {
+            Text(
+                "Récap des notifications sous l'heure",
+                color = AuraColors.Text,
+                style = AuraType.body.copy(fontSize = AuraType.date.fontSize),
+                modifier = Modifier.weight(1f).padding(end = AuraSpace.l),
+            )
+            Switch(checked = state.notifRecap, onCheckedChange = actions::setNotifRecap, colors = auraSwitchColors())
+        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier

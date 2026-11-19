@@ -366,6 +366,8 @@ private fun ThemeTab(appearance: Appearance, reduced: Boolean, onSelect: (ThemeI
     val options = listOf(
         ThemeId.ECLIPSE to "Éclipse",
         ThemeId.NEON to "Néon",
+        ThemeId.TERMINAL to "Terminal",
+        ThemeId.AUBE to "Aube",
     )
     OptionsRow {
         options.forEach { (id, name) ->
@@ -375,7 +377,13 @@ private fun ThemeTab(appearance: Appearance, reduced: Boolean, onSelect: (ThemeI
             val detail = spec.secondary ?: lerp(accent, Color.White, 0.55f)
             OptionCard(selected, reduced, onClick = { onSelect(id) }, modifier = Modifier.width(150.dp)) {
                 Column {
-                    val previewShape = if (spec.cutCorners) CutCornerShape(8.dp) else RoundedCornerShape(14.dp)
+                    val previewShape = when {
+                        spec.squareCorners -> RoundedCornerShape(2.dp)
+                        spec.cutCorners -> CutCornerShape(8.dp)
+                        else -> RoundedCornerShape(14.dp)
+                    }
+                    // Police du préréglage du thème, pour l'aperçu.
+                    val previewFont = fontFamilyFor(Appearance().withTheme(id).font)
                     Box(
                         Modifier
                             .height(72.dp)
@@ -390,8 +398,12 @@ private fun ThemeTab(appearance: Appearance, reduced: Boolean, onSelect: (ThemeI
                                 "21:49",
                                 color = spec.text,
                                 style = AuraType.body.copy(
-                                    fontFamily = if (id == ThemeId.NEON) fontFamilyFor(FontChoice.CHAKRA_PETCH) else FontFamily.SansSerif,
-                                    fontWeight = if (id == ThemeId.NEON) FontWeight.Medium else FontWeight.ExtraLight,
+                                    fontFamily = previewFont,
+                                    fontWeight = when (id) {
+                                        ThemeId.NEON -> FontWeight.Medium
+                                        ThemeId.ECLIPSE -> FontWeight.ExtraLight
+                                        else -> FontWeight.Normal
+                                    },
                                     fontSize = 24.sp,
                                     lineHeight = 28.sp,
                                     shadow = if (id == ThemeId.NEON) androidx.compose.ui.graphics.Shadow(accent.copy(alpha = 0.6f), androidx.compose.ui.geometry.Offset.Zero, 14f) else null,

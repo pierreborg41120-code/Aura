@@ -183,6 +183,26 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("haptics", true)
         set(value) = sp.edit().putBoolean("haptics", value).apply()
 
+    // --- Récap des notifications ---
+    var notifRecap: Boolean
+        get() = sp.getBoolean("notif_recap", true)
+        set(value) = sp.edit().putBoolean("notif_recap", value).apply()
+
+    // --- Limiteur ---
+    /** Apps pour lesquelles une pause s'affiche avant l'ouverture. */
+    var limitedApps: Set<String>
+        get() = sp.getStringSet("limited_apps", emptySet()).orEmpty().toSet()
+        set(value) = sp.edit().putStringSet("limited_apps", value).apply()
+
+    // --- Gestes ---
+    var gestureActions: Map<Gesture, String>
+        get() = Gesture.entries.associateWith { sp.getString("gesture_" + it.name, null) ?: GestureAction.default(it) }
+        set(value) {
+            val editor = sp.edit()
+            value.forEach { (g, a) -> editor.putString("gesture_" + g.name, a) }
+            editor.apply()
+        }
+
     // --- Dossiers ---
     var folders: List<Folder>
         get() = foldersFromJson(sp.getString("folders", null))

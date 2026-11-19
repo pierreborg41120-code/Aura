@@ -109,7 +109,13 @@ fun HomeScreen(
             .pointerInputVerticalSwipe(
                 threshold = swipeThreshold,
                 onSwipeUp = { state.drawerOpen = true },
-                onSwipeDown = { actions.expandNotifications() },
+                onSwipeDown = { actions.performGesture(com.aura.launcher.Gesture.SWIPE_DOWN) },
+            )
+            // --- Gestes --- glisser à gauche / à droite dans le vide (les favoris gardent leur propre glisser).
+            .pointerInputHorizontalSwipe(
+                threshold = swipeThreshold,
+                onSwipeLeft = { actions.performGesture(com.aura.launcher.Gesture.SWIPE_LEFT) },
+                onSwipeRight = { actions.performGesture(com.aura.launcher.Gesture.SWIPE_RIGHT) },
             )
             // Appui long dans le vide : réglages. Double-toucher : verrouiller l'écran.
             .pointerInputTaps(
@@ -120,7 +126,7 @@ fun HomeScreen(
                         state.settingsOpen = true
                     }
                 },
-                onDoubleTap = { actions.lockScreen() },
+                onDoubleTap = { actions.performGesture(com.aura.launcher.Gesture.DOUBLE_TAP) },
             )
             .graphicsLayer {
                 alpha = reveal.value
@@ -133,6 +139,7 @@ fun HomeScreen(
         // --- Apparence --- style d'horloge choisi (ui/ClockStyles.kt).
         AuraClock(LocalAppearance.current.clock, LocalAppearance.current.alignment, actions)
         StatusLine(state, actions)
+        RecapLine(state) // --- Récap des notifications ---
         // --- Accueil --- widget libre « sous l'heure ».
         if (state.homeWidgetPosition == HOME_WIDGET_UNDER_CLOCK && state.homeWidgetId != null) {
             Spacer(Modifier.height(AuraSpace.l))
@@ -212,6 +219,7 @@ fun HomeScreen(
                         if (index < favorites.lastIndex) add(MenuAction("Descendre") { actions.moveFavorite(app, +1) })
                         add(MenuAction("Retirer de l'accueil") { actions.toggleFavorite(app) })
                         add(MenuAction("Ajouter à un dossier…") { state.folderPicking = app })
+                        add(limiterMenu(state, actions, app)) // --- Limiteur ---
                         add(MenuAction("Renommer") { state.renaming = app })
                         add(MenuAction("Infos de l'app") { actions.openAppInfo(app) })
                         add(MenuAction("Désinstaller") { actions.uninstall(app) })
@@ -290,6 +298,37 @@ private fun Modifier.blockGestures(): Modifier = this.then(
         }
     },
 )
+
+private fun Modifier.pointerInputHorizontalSwipe(
+    threshold: Float,
+    onSwipeLeft: () -> Unit,
+    onSwipeRight: () -> Unit,
+): Modifier = this.then(
+    Modifier.pointerInput("hswipe") {
+        var total = 0f
+        androidx.compose.foundation.gestures.detectHorizontalDragGestures(
+            onDragStart = { total = 0f },
+            onDragEnd = {
+                when {
+                    total < -threshold -> onSwipeLeft()
+                    total > threshold -> onSwipeRight()
+                }
+                total = 0f
+            },
+            onDragCancel = { total = 0f },
+            onHorizontalDrag = { change, dragAmount ->
+                change.consume()
+                total += dragAmount
+            },
+        )
+    },
+)
+
+/** --- Limiteur --- entrée de menu « Limiter » / « Ne plus limiter ». */
+fun limiterMenu(state: LauncherState, actions: LauncherActions, app: com.aura.launcher.AppEntry): MenuAction {
+    val limited = app.key in state.limitedApps
+    return MenuAction(if (limited) "Ne plus limiter" else "Limiter") { actions.setLimited(app, !limited) }
+}
 
 private fun Modifier.pointerInputVerticalSwipe(
     threshold: Float,

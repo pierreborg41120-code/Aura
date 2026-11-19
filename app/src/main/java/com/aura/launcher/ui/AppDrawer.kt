@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -160,8 +161,18 @@ fun AppDrawer(state: LauncherState, actions: LauncherActions) {
             .systemBarsPadding()
             .imePadding(),
     ) {
+        // --- Gestes --- geste « Recherche » : curseur dans le champ, clavier ouvert.
+        val searchFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+        LaunchedEffect(state.focusSearch) {
+            if (state.focusSearch) {
+                delay(AuraMotion.standard.toLong()) // laisse le tiroir apparaître
+                runCatching { searchFocus.requestFocus() }
+                state.focusSearch = false
+            }
+        }
         Column(Modifier.fillMaxSize()) {
             SearchField(
+                focusRequester = searchFocus,
                 value = query,
                 onValueChange = { state.query = it },
                 onGo = {
@@ -239,7 +250,13 @@ private fun sortWithinLetters(apps: List<AppEntry>, scores: Map<String, Double>)
  * dès qu'on a tapé quelque chose. Le contour s'éclaire en lavande quand le champ a le focus.
  */
 @Composable
-private fun SearchField(value: String, onValueChange: (String) -> Unit, onGo: () -> Unit, textScale: Float) {
+private fun SearchField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onGo: () -> Unit,
+    textScale: Float,
+    focusRequester: androidx.compose.ui.focus.FocusRequester,
+) {
     var focused by remember { mutableStateOf(false) }
     val border by animateColorAsState(
         if (focused) AuraColors.Accent.copy(alpha = 0.55f) else AuraColors.Hairline,
@@ -259,6 +276,7 @@ private fun SearchField(value: String, onValueChange: (String) -> Unit, onGo: ()
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = AuraSpace.l, end = AuraSpace.l, top = AuraSpace.m, bottom = AuraSpace.xs)
+            .focusRequester(focusRequester)
             .onFocusChanged { focused = it.isFocused },
         decorationBox = { inner ->
             Row(
@@ -408,6 +426,7 @@ private fun drawerMenu(state: LauncherState, actions: LauncherActions, app: AppE
     },
     // --- Dossiers ---
     MenuAction("Ajouter à un dossier…") { state.folderPicking = app },
+    limiterMenu(state, actions, app), // --- Limiteur ---
     MenuAction("Renommer") { state.renaming = app },
     MenuAction("Masquer") { actions.setHidden(app.key, true) },
     MenuAction("Infos de l'app") { actions.openAppInfo(app) },

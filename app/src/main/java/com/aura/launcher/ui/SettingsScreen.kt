@@ -80,7 +80,7 @@ fun SettingsScreen(state: LauncherState, actions: LauncherActions) {
             )
         }
 
-        SectionTitle("Gestes")
+        com.aura.launcher.ui.settings.GestureSettings(state, actions) // --- Gestes ---
         if (state.hasLockAccess) {
             Text(
                 "Double-toucher l'accueil verrouille l'écran ✓",
@@ -107,6 +107,7 @@ fun SettingsScreen(state: LauncherState, actions: LauncherActions) {
             )
         }
 
+        com.aura.launcher.ui.settings.LimiterSettings(state, actions) // --- Limiteur ---
         com.aura.launcher.ui.settings.BackupSettings(actions) // --- Sauvegarde ---
 
         SectionTitle("Système")
