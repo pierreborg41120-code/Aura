@@ -154,11 +154,15 @@ fun HomeScreen(
         }
 
         val favorites = state.favoriteApps
+        // --- Apparence --- alignement et police choisis pour l'accueil.
+        val alignment = LocalAppearance.current.alignment
         if (favorites.isEmpty()) {
             Text(
                 text = "Glisse vers le haut pour voir tes apps,\npuis appui long sur une app pour l'épingler ici.",
                 color = AuraColors.TextDim,
-                style = AuraType.body.onWallpaper(),
+                style = AuraType.body.homeFont().onWallpaper(),
+                textAlign = alignment.textAlign(),
+                modifier = Modifier.fillMaxWidth(),
             )
         } else {
             favorites.forEachIndexed { index, app ->
@@ -168,7 +172,8 @@ fun HomeScreen(
                     actions = actions,
                     showIcon = state.showIcons,
                     iconSize = (30 * state.textScale).dp,
-                    textStyle = AuraType.favorite.scaled(state.textScale).onWallpaper(),
+                    textStyle = AuraType.favorite.scaled(state.textScale).homeFont().onWallpaper(),
+                    alignment = alignment,
                     verticalPadding = AuraSpace.s + AuraSpace.xxs,
                     badge = notif != null,
                     subtitle = if (state.showNotificationPreviews) notif?.preview else null,

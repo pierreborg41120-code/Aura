@@ -4,6 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.aura.launcher.AppEntry
+import com.aura.launcher.HomeAlignment
 import com.aura.launcher.LauncherActions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -45,6 +47,8 @@ data class MenuAction(val label: String, val onClick: () -> Unit)
  * Une ligne « icône + nom » cliquable, avec un menu sur appui long.
  * [badge] affiche le point « éclipse » (notifications en attente), [subtitle] une ligne d'aperçu.
  * [textStyle] porte la taille (déjà multipliée par le réglage de taille) et, sur l'accueil, l'ombre.
+ * [alignment] (favoris de l'accueil seulement) : START = icône à gauche ; CENTER = centré, sans icône ;
+ * END = aligné à droite, icône à droite du nom et point de notification à gauche du nom (en miroir).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -61,13 +65,22 @@ fun AppRow(
     subtitle: String? = null,
     // --- Réponses aux notifications --- toucher l'aperçu (au lieu de lancer l'app), si fourni.
     onSubtitleClick: (() -> Unit)? = null,
+    // --- Apparence --- alignement des favoris ; le tiroir garde la valeur par défaut.
+    alignment: HomeAlignment = HomeAlignment.START,
 ) {
+    val iconShown = showIcon && alignment != HomeAlignment.CENTER
+    val alignEnd = alignment == HomeAlignment.END
     var menuOpen by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
 
     Box(modifier) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = when (alignment) {
+                HomeAlignment.START -> Arrangement.Start
+                HomeAlignment.CENTER -> Arrangement.Center
+                HomeAlignment.END -> Arrangement.End
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 // Retour visuel au toucher arrondi, légèrement débordant pour ne pas coller au texte.
@@ -81,12 +94,16 @@ fun AppRow(
                 )
                 .padding(vertical = verticalPadding),
         ) {
-            if (showIcon) {
+            if (iconShown && !alignEnd) {
                 AppIcon(app, actions, iconSize)
                 Spacer(Modifier.width(AuraSpace.l))
             }
-            Column(Modifier.weight(1f, fill = false)) {
+            Column(Modifier.weight(1f, fill = false), horizontalAlignment = alignment.horizontal()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (badge && alignEnd) {
+                        HaloDot(size = 12.dp)
+                        Spacer(Modifier.width(AuraSpace.s))
+                    }
                     Text(
                         text = app.label,
                         style = textStyle,
@@ -95,7 +112,7 @@ fun AppRow(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
                     )
-                    if (badge) {
+                    if (badge && !alignEnd) {
                         Spacer(Modifier.width(AuraSpace.s))
                         HaloDot(size = 12.dp)
                     }
@@ -111,6 +128,7 @@ fun AppRow(
                         color = AuraColors.TextDim,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        textAlign = alignment.textAlign(),
                         modifier = Modifier
                             .padding(top = AuraSpace.xxs)
                             .then(
@@ -124,6 +142,10 @@ fun AppRow(
                             ),
                     )
                 }
+            }
+            if (iconShown && alignEnd) {
+                Spacer(Modifier.width(AuraSpace.l))
+                AppIcon(app, actions, iconSize)
             }
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
