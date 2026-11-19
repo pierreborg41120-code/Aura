@@ -26,6 +26,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.CutCornerShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.drawBehind
@@ -189,10 +190,10 @@ object AuraLook {
 }
 
 /** Forme d'une surface : arrondie (Éclipse) ou en biseau (Néon). Le biseau est plus petit que l'arrondi. */
-fun auraShape(radius: Dp): Shape =
+fun auraShape(radius: Dp): CornerBasedShape =
     if (AuraLook.spec.cutCorners) CutCornerShape(radius * 0.45f) else RoundedCornerShape(radius)
 
-fun auraShape(topStart: Dp = 0.dp, topEnd: Dp = 0.dp): Shape =
+fun auraShape(topStart: Dp = 0.dp, topEnd: Dp = 0.dp): CornerBasedShape =
     if (AuraLook.spec.cutCorners) CutCornerShape(topStart = topStart * 0.45f, topEnd = topEnd * 0.45f)
     else RoundedCornerShape(topStart = topStart, topEnd = topEnd)
 
