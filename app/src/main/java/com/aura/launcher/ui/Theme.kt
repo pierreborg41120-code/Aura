@@ -250,6 +250,20 @@ object AuraAccent {
     var color by mutableStateOf(AuraColors.Lavender)
 }
 
+/**
+ * Palette de l'accent : 7 couleurs, nom affiché + couleur. L'indice est celui enregistré dans Appearance.accent.
+ * Toutes assez claires pour être lues sur le fond nuit et servir de halo.
+ */
+val AccentPalette: List<Pair<String, Color>> = listOf(
+    "Lavande" to Color(0xFF8C9BFF),
+    "Glacier" to Color(0xFF7CC8F0),
+    "Menthe" to Color(0xFF7FD9B4),
+    "Ambre" to Color(0xFFF2C46D),
+    "Corail" to Color(0xFFFF8A7A),
+    "Rose" to Color(0xFFF28DC4),
+    "Lune" to Color(0xFFE4E4F0),
+)
+
 /** Apparence en cours (réglages de l'éditeur « Apparence »), fournie par [AuraTheme]. */
 val LocalAppearance = staticCompositionLocalOf { Appearance() }
 
