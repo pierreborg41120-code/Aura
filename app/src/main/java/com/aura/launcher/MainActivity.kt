@@ -75,6 +75,18 @@ class MainActivity : ComponentActivity(), LauncherActions {
         state.folders = prefs.folders // --- Dossiers ---
         state.notifRecap = prefs.notifRecap // --- Récap des notifications ---
         state.limitedApps = prefs.limitedApps // --- Limiteur ---
+        state.appLimits = prefs.appLimits
+        ScreenTime.init(this)
+        lifecycleScope.launch {
+            // Temps écoulé dans une app : le service est revenu à l'accueil, on affiche l'écran.
+            ScreenTime.timeUp.collect { pkg ->
+                val app = pkg?.let { p -> state.apps.firstOrNull { it.component.packageName == p } } ?: return@collect
+                state.pendingTimeUp = true
+                state.pendingLimitedCount = usage.todayCount(app.key)
+                state.pendingLimited = app
+                ScreenTime.clearTimeUp()
+            }
+        }
         state.gestureActions = prefs.gestureActions // --- Gestes ---
         state.hidden = prefs.hidden
         state.showIcons = prefs.showIcons
@@ -234,8 +246,23 @@ class MainActivity : ComponentActivity(), LauncherActions {
     // --- LauncherActions ---
 
     override fun launch(app: AppEntry) {
+        // --- Limiteur --- limite de durée : temps écoulé → écran « Temps écoulé » ; sinon on dit ce qu'il reste.
+        state.appLimits[app.component.packageName]?.let { limit ->
+            val left = ScreenTime.remaining(app.component.packageName, limit)
+            if (left <= 0) {
+                state.pendingTimeUp = true
+                state.pendingLimitedCount = usage.todayCount(app.key)
+                state.pendingLimited = app
+            } else {
+                val minutes = ((left + 59_999) / 60_000).toInt()
+                toast(if (minutes > 1) "Encore $minutes min aujourd'hui" else "Encore 1 min aujourd'hui")
+                launchAnyway(app)
+            }
+            return
+        }
         // --- Limiteur --- une app limitée passe d'abord par l'écran de pause.
         if (app.key in state.limitedApps) {
+            state.pendingTimeUp = false
             state.pendingLimitedCount = usage.todayCount(app.key)
             state.pendingLimited = app
             return
@@ -321,6 +348,23 @@ class MainActivity : ComponentActivity(), LauncherActions {
     override fun setLimited(app: AppEntry, limited: Boolean) {
         state.limitedApps = if (limited) state.limitedApps + app.key else state.limitedApps - app.key
         prefs.limitedApps = state.limitedApps
+        if (limited) setAppLimit(app, null) // un seul mode à la fois
+    }
+
+    override fun setAppLimit(app: AppEntry, minutes: Int?) {
+        val pkg = app.component.packageName
+        state.appLimits = if (minutes == null || minutes <= 0) state.appLimits - pkg else state.appLimits + (pkg to minutes)
+        prefs.appLimits = state.appLimits
+        if (minutes != null && app.key in state.limitedApps) {
+            state.limitedApps = state.limitedApps - app.key
+            prefs.limitedApps = state.limitedApps
+        }
+        state.limitChoosing = null
+    }
+
+    override fun grantMoreTime(app: AppEntry) {
+        ScreenTime.grant(app.component.packageName)
+        launchAnyway(app)
     }
 
     // --- Gestes ---

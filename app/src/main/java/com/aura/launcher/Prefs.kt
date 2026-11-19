@@ -194,6 +194,19 @@ class Prefs(context: Context) {
         get() = sp.getStringSet("limited_apps", emptySet()).orEmpty().toSet()
         set(value) = sp.edit().putStringSet("limited_apps", value).apply()
 
+    /** Limites de durée par jour : paquet de l'app → minutes. */
+    var appLimits: Map<String, Int>
+        get() = sp.all
+            .filterKeys { it.startsWith(LIMIT_PREFIX) }
+            .mapNotNull { (k, v) -> (v as? Int)?.let { k.removePrefix(LIMIT_PREFIX) to it } }
+            .toMap()
+        set(value) {
+            val editor = sp.edit()
+            sp.all.keys.filter { it.startsWith(LIMIT_PREFIX) }.forEach(editor::remove)
+            value.forEach { (k, v) -> editor.putInt(LIMIT_PREFIX + k, v) }
+            editor.apply()
+        }
+
     // --- Gestes ---
     var gestureActions: Map<Gesture, String>
         get() = Gesture.entries.associateWith { sp.getString("gesture_" + it.name, null) ?: GestureAction.default(it) }
@@ -313,6 +326,7 @@ class Prefs(context: Context) {
         const val KEY_TEXT_SCALE = "text_scale"
         const val KEY_ONBOARDING_DONE = "onboarding_done"
         const val LABEL_PREFIX = "label:"
+        const val LIMIT_PREFIX = "applimit:"
         const val SEP = "\n"
         const val BACKUP_APP = "aura"
         const val BACKUP_VERSION = 1
