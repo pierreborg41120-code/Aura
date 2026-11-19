@@ -114,6 +114,10 @@ Ne pas le changer, sinon l'utilisateur devra désinstaller Aura et perdra ses fa
 | Thème Néon (onglet Thème de l'éditeur) | ✅ testé, OK |
 | Dossiers sur l'accueil (Folders.kt, ui/Folders.kt ; clé « folder:<id> » dans les favoris) | ✅ testé, OK |
 | Sauvegarde / restauration des réglages en JSON (Prefs.exportJson/importJson, ui/settings/BackupSettings.kt ; sans widgets ni cache météo) | ✅ testé, OK (import compris) |
+| Récap des notifications sous l'heure + feuille groupée par app (ui/NotificationRecap.kt, réglage dans NotificationSettings) | ⏳ à tester |
+| Thèmes Terminal et Aube (TerminalSpec / AubeSpec, `squareCorners`, préréglages dans withTheme) | ⏳ à tester |
+| Limiteur : « Limiter » dans le menu d'appui long, pause de 5 s (ui/LimiterPause.kt), compte du jour (UsageTracker, fichier aura_usage_daily), liste dans les réglages | ⏳ à tester |
+| Gestes personnalisables : bas, gauche, droite, double-toucher (Gestures.kt, ui/settings/GestureSettings.kt, performGesture) | ⏳ à tester |
 | Icônes : « Thème » (ThemedIcons.kt : silhouette monochrome Android 13 / calque adaptatif / silhouette calculée, dans un cadre du thème) et packs installés (IconPacks.kt, appfilter.xml, logo du pack dans sa carte) — onglet Icônes | ✅ testé, « tout fonctionne nickel » |
 | Éditeur « Apparence » : horloges (ui/ClockStyles.kt), polices (res/font), accent Auto/palette, voile, flou du tiroir, alignement (ui/AppearanceEditor.kt, ui/WallpaperLook.kt, Appearance.kt) | ✅ testé, OK (flou compris ; fenêtre rendue translucide au 1er flou via setTranslucent) |
 
@@ -139,11 +143,9 @@ d'une œuvre existante (Cyberpunk Edgerunners…). Ajouter un thème = un ThemeS
 
 ## Pistes pour la suite (proposées, pas encore faites)
 
-- Récap des notifications, limiteur d'utilisation
-  (repérés dans les réglages de Niagara, laissés pour plus tard).
 - Réglages : chaque fonction a sa section dans `ui/settings/*.kt`, appelée par une ligne de SettingsScreen.kt.
-
-- Widgets (AppWidgetHost).
+- Thème clair « Papier » : écarté pour l'instant (le texte de l'accueil, posé sur le fond d'écran, doit rester clair).
+- Limiteur : masquer une app à certaines heures (proposé, pas fait).
 - Option : deux variantes « Aura » (sans services sensibles, pas bloquée par Play Protect) et « Aura Plus ».
 
 ## Conventions
