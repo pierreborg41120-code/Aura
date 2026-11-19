@@ -72,6 +72,7 @@ class MainActivity : ComponentActivity(), LauncherActions {
         media = MediaWatcher(this) { state.media = it }
 
         state.favorites = prefs.favorites
+        state.folders = prefs.folders // --- Dossiers ---
         state.hidden = prefs.hidden
         state.showIcons = prefs.showIcons
         state.autoLaunch = prefs.autoLaunch
@@ -260,19 +261,132 @@ class MainActivity : ComponentActivity(), LauncherActions {
 
     override fun toggleFavorite(app: AppEntry) {
         val current = state.favorites
-        state.favorites = if (app.key in current) current - app.key else current + app.key
-        prefs.favorites = state.favorites
+        if (app.key in current) {
+            saveFavorites(current - app.key)
+            return
+        }
+        // --- Dossiers --- épinglée seule, l'app sort de son dossier (un dossier vidé disparaît).
+        val folders = state.folders.map { it.copy(apps = it.apps - app.key) }
+        val emptied = folders.filter { it.apps.isEmpty() }.map { it.favoriteKey }.toSet()
+        if (folders != state.folders) saveFolders(folders.filter { it.apps.isNotEmpty() })
+        saveFavorites(current - emptied + app.key)
     }
 
-    override fun moveFavorite(app: AppEntry, delta: Int) {
-        // On travaille sur la liste des favoris encore installés pour que l'ordre affiché soit cohérent.
-        val list = state.favoriteApps.map { it.key }.toMutableList()
-        val from = list.indexOf(app.key)
+    override fun moveFavorite(app: AppEntry, delta: Int) = moveHomeItem(app.key, delta)
+
+    override fun moveHomeItem(key: String, delta: Int) {
+        // On travaille sur les éléments visibles de l'accueil (apps installées, dossiers non vides)
+        // pour que l'ordre affiché soit cohérent.
+        val list = state.homeItems.map { it.key }.toMutableList()
+        val from = list.indexOf(key)
         val to = from + delta
         if (from < 0 || to !in list.indices) return
         list.add(to, list.removeAt(from))
+        saveFavorites(list)
+    }
+
+    private fun saveFavorites(list: List<String>) {
         state.favorites = list
         prefs.favorites = list
+    }
+
+    // --- Dossiers ---
+
+    private fun saveFolders(folders: List<Folder>) {
+        state.folders = folders
+        prefs.folders = folders
+    }
+
+    override fun addToFolder(app: AppEntry, folderId: String?, newName: String?) {
+        // L'app quitte ses autres dossiers et la liste des favoris : elle n'est plus qu'à un endroit.
+        var folders = state.folders.map { f -> f.copy(apps = f.apps - app.key) }
+        var favorites = state.favorites - app.key
+        val target = folderId?.let { id -> folders.firstOrNull { it.id == id } }
+        if (target != null) {
+            folders = folders.map { if (it.id == target.id) it.copy(apps = it.apps + app.key) else it }
+        } else {
+            val name = newName?.trim().orEmpty().ifBlank { "Dossier" }
+            val folder = Folder(java.util.UUID.randomUUID().toString().take(8), name, listOf(app.key))
+            folders = folders + folder
+            favorites = favorites + folder.favoriteKey
+        }
+        val (kept, emptied) = folders.partition { it.apps.isNotEmpty() }
+        saveFolders(kept)
+        saveFavorites(favorites - emptied.map { it.favoriteKey }.toSet())
+        state.folderPicking = null
+    }
+
+    override fun removeFromFolder(app: AppEntry, folderId: String) {
+        val folders = state.folders.map { if (it.id == folderId) it.copy(apps = it.apps - app.key) else it }
+        val emptied = folders.filter { it.apps.isEmpty() }.map { it.id }.toSet()
+        saveFolders(folders.filter { it.id !in emptied })
+        if (folderId in emptied) {
+            saveFavorites(state.favorites - (FOLDER_PREFIX + folderId))
+            state.openFolder = null
+        }
+    }
+
+    override fun renameFolder(folderId: String, name: String) {
+        val clean = name.trim()
+        if (clean.isNotEmpty()) saveFolders(state.folders.map { if (it.id == folderId) it.copy(name = clean) else it })
+        state.renamingFolder = null
+    }
+
+    override fun deleteFolder(folderId: String) {
+        saveFolders(state.folders.filter { it.id != folderId })
+        saveFavorites(state.favorites - (FOLDER_PREFIX + folderId))
+        if (state.openFolder == folderId) state.openFolder = null
+    }
+
+    // --- Sauvegarde ---
+
+    private val backupExport =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+            if (uri == null) return@registerForActivityResult
+            try {
+                contentResolver.openOutputStream(uri, "wt")?.use { it.write(prefs.exportJson().toByteArray()) }
+                toast("Sauvegarde enregistrée")
+            } catch (e: Exception) {
+                toast("Impossible d'enregistrer la sauvegarde")
+            }
+        }
+
+    private val backupImport =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri == null) return@registerForActivityResult
+            val text = try {
+                contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+            } catch (e: Exception) {
+                null
+            }
+            if (text == null || !prefs.importJson(text)) {
+                toast("Ce fichier n'est pas une sauvegarde d'Aura")
+                return@registerForActivityResult
+            }
+            toast("Réglages restaurés")
+            // On repart de zéro : l'activité relit tous les réglages au démarrage.
+            keepSettingsOpen = false
+            recreate()
+        }
+
+    override fun exportBackup() {
+        val date = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT).format(java.util.Date())
+        keepSettingsOpen = true
+        tryLaunch { backupExport.launch("aura-sauvegarde-$date.json") }
+    }
+
+    override fun importBackup() {
+        keepSettingsOpen = true
+        tryLaunch { backupImport.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
+    }
+
+    private fun tryLaunch(block: () -> Unit) {
+        try {
+            block()
+        } catch (e: ActivityNotFoundException) {
+            keepSettingsOpen = false
+            toast("Aucune app de fichiers n'est disponible")
+        }
     }
 
     override fun setHidden(key: String, hidden: Boolean) {

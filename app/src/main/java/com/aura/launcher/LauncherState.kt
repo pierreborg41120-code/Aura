@@ -46,6 +46,31 @@ class LauncherState {
 
     fun notificationsFor(app: AppEntry): NotificationInfo? = notifications[app.notificationKey]
 
+    // --- Dossiers ---
+    var folders by mutableStateOf<List<Folder>>(emptyList())
+    /** Dossier ouvert (son id), null si aucun. */
+    var openFolder by mutableStateOf<String?>(null)
+    /** App pour laquelle on choisit un dossier (boîte « Ajouter à un dossier »). */
+    var folderPicking by mutableStateOf<AppEntry?>(null)
+    /** Dossier en cours de renommage. */
+    var renamingFolder by mutableStateOf<Folder?>(null)
+
+    /** Accueil dans l'ordre choisi : apps épinglées et dossiers (un dossier sans app installée est omis). */
+    val homeItems: List<HomeItem>
+        get() {
+            val byKey = apps.associateBy { it.key }
+            val foldersById = folders.associateBy { it.id }
+            return favorites.mapNotNull { key ->
+                if (key.startsWith(FOLDER_PREFIX)) {
+                    val folder = foldersById[key.removePrefix(FOLDER_PREFIX)] ?: return@mapNotNull null
+                    val folderApps = folder.apps.mapNotNull { byKey[it] }
+                    if (folderApps.isEmpty()) null else HomeItem.Group(folder, folderApps)
+                } else {
+                    byKey[key]?.let { HomeItem.App(it) }
+                }
+            }
+        }
+
     // --- Raccourcis d'app ---
     /** Panneau de raccourcis ouvert depuis l'accueil (null = fermé). */
     var shortcutPanel by mutableStateOf<ShortcutPanel?>(null)
@@ -229,6 +254,23 @@ interface LauncherActions {
     fun setShowHeadphoneApps(show: Boolean)
     fun setAllowRotation(allow: Boolean)
     fun setHapticsEnabled(enabled: Boolean)
+
+    // --- Dossiers ---
+    /** Range l'app dans le dossier [folderId], ou dans un nouveau dossier nommé [newName] (placé sur l'accueil). */
+    fun addToFolder(app: AppEntry, folderId: String?, newName: String?)
+    /** Sort l'app du dossier (un dossier vidé disparaît). */
+    fun removeFromFolder(app: AppEntry, folderId: String)
+    fun renameFolder(folderId: String, name: String)
+    /** Supprime le dossier ; ses apps restent dans la liste des apps. */
+    fun deleteFolder(folderId: String)
+    /** Monte (-1) ou descend (+1) un élément de l'accueil (app ou dossier) par sa clé. */
+    fun moveHomeItem(key: String, delta: Int)
+
+    // --- Sauvegarde ---
+    /** Ouvre la fenêtre d'Android pour choisir où enregistrer la sauvegarde. */
+    fun exportBackup()
+    /** Ouvre la fenêtre d'Android pour choisir le fichier à importer (remplace tous les réglages). */
+    fun importBackup()
 
     // --- Apparence ---
     /** Ouvre l'éditeur (ferme les réglages, l'accueil devient visible). */

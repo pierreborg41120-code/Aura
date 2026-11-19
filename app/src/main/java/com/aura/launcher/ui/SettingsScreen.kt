@@ -107,6 +107,8 @@ fun SettingsScreen(state: LauncherState, actions: LauncherActions) {
             )
         }
 
+        com.aura.launcher.ui.settings.BackupSettings(actions) // --- Sauvegarde ---
+
         SectionTitle("Système")
         LinkRow("Assistant de configuration") { actions.openOnboarding() }
         LinkRow("Changer le fond d'écran") { actions.openWallpaperPicker() }
@@ -195,7 +197,7 @@ private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Un
 
 /** Ligne qui ouvre une page ou lance une action : libellé et petit chevron dessiné. */
 @Composable
-private fun LinkRow(label: String, onClick: () -> Unit) {
+internal fun LinkRow(label: String, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -216,7 +218,7 @@ private fun LinkRow(label: String, onClick: () -> Unit) {
 
 /** Titre de section : lavande, graisse moyenne, avec l'espace qui le sépare de la section précédente. */
 @Composable
-private fun SectionTitle(text: String) {
+internal fun SectionTitle(text: String) {
     Text(
         text,
         color = AuraColors.Accent,
