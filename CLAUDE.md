@@ -118,6 +118,10 @@ Ne pas le changer, sinon l'utilisateur devra désinstaller Aura et perdra ses fa
 | Thèmes Terminal et Aube (TerminalSpec / AubeSpec, `squareCorners`, préréglages dans withTheme) | ✅ testé, OK |
 | Limiteur : « Limiter » dans le menu d'appui long, pause de 5 s (ui/LimiterPause.kt), compte du jour (UsageTracker, fichier aura_usage_daily), liste dans les réglages | ✅ testé, OK (pause) |
 | Limiteur en durée par jour : « Limiter… » (pause / 5 min–2 h), LockService suit l'app au premier plan (TYPE_WINDOW_STATE_CHANGED, paquet seulement), ScreenTime.kt compte, GLOBAL_ACTION_HOME + écran « Temps écoulé » / « Encore 5 minutes » | ⏳ à tester |
+| Concentration : apps mises de côté (cachées de l'accueil et de la liste, pause « Concentration » via la recherche), plage horaire ou 30 min–4 h à la main, ligne sous l'heure, geste (Schedules.kt FocusSettings, ui/Modes.kt, ui/settings/FocusSettings.kt) | ⏳ à tester |
+| Bilan de la semaine : 7 barres + total par app, historique « h:aaaammjj:paquet » dans aura_screen_time (28 jours), apps suivies = limitées + concentration (ScreenTime.tracked) | ⏳ à tester |
+| Actions rapides dans la recherche : « minuteur 10 », « alarme 7h30 », « sms Julie bonjour », « appeler Julie » (search/QuickActions.kt, permission SET_ALARM) | ⏳ à tester |
+| Profils d'accueil Perso / Travail : favoris séparés (clé favorites_work), bascule par le nom sous l'heure, un geste ou un horaire (ProfileSettings, refreshModes toutes les 30 s) | ⏳ à tester |
 | Gestes personnalisables : bas, gauche, droite, double-toucher (Gestures.kt, ui/settings/GestureSettings.kt, performGesture) | ✅ testé, OK |
 | Icônes : « Thème » (ThemedIcons.kt : silhouette monochrome Android 13 / calque adaptatif / silhouette calculée, dans un cadre du thème) et packs installés (IconPacks.kt, appfilter.xml, logo du pack dans sa carte) — onglet Icônes | ✅ testé, « tout fonctionne nickel » |
 | Éditeur « Apparence » : horloges (ui/ClockStyles.kt), polices (res/font), accent Auto/palette, voile, flou du tiroir, alignement (ui/AppearanceEditor.kt, ui/WallpaperLook.kt, Appearance.kt) | ✅ testé, OK (flou compris ; fenêtre rendue translucide au 1er flou via setTranslucent) |
@@ -146,7 +150,6 @@ d'une œuvre existante (Cyberpunk Edgerunners…). Ajouter un thème = un ThemeS
 
 - Réglages : chaque fonction a sa section dans `ui/settings/*.kt`, appelée par une ligne de SettingsScreen.kt.
 - Thème clair « Papier » : écarté pour l'instant (le texte de l'accueil, posé sur le fond d'écran, doit rester clair).
-- Limiteur : masquer une app à certaines heures (proposé, pas fait).
 - Option : deux variantes « Aura » (sans services sensibles, pas bloquée par Play Protect) et « Aura Plus ».
 
 ## Conventions

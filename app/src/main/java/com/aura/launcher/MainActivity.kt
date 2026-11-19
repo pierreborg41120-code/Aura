@@ -71,7 +71,18 @@ class MainActivity : ComponentActivity(), LauncherActions {
         prefs = Prefs(this)
         media = MediaWatcher(this) { state.media = it }
 
-        state.favorites = prefs.favorites
+        // --- Profils d'accueil --- les favoris affichés sont ceux du profil en cours.
+        state.profiles = prefs.profiles
+        state.homeProfile = if (state.profiles.enabled) prefs.homeProfile else HomeProfile.PERSO
+        state.favorites = prefs.favoritesOf(state.homeProfile)
+        state.focus = prefs.focus // --- Concentration ---
+        lifecycleScope.launch {
+            // Concentration et profil automatique suivent l'heure : on revérifie toutes les 30 s.
+            while (true) {
+                refreshModes()
+                kotlinx.coroutines.delay(30_000)
+            }
+        }
         state.folders = prefs.folders // --- Dossiers ---
         state.notifRecap = prefs.notifRecap // --- Récap des notifications ---
         state.limitedApps = prefs.limitedApps // --- Limiteur ---
@@ -82,6 +93,7 @@ class MainActivity : ComponentActivity(), LauncherActions {
             ScreenTime.timeUp.collect { pkg ->
                 val app = pkg?.let { p -> state.apps.firstOrNull { it.component.packageName == p } } ?: return@collect
                 state.pendingTimeUp = true
+                state.pendingFocus = false
                 state.pendingLimitedCount = usage.todayCount(app.key)
                 state.pendingLimited = app
                 ScreenTime.clearTimeUp()
@@ -246,28 +258,31 @@ class MainActivity : ComponentActivity(), LauncherActions {
     // --- LauncherActions ---
 
     override fun launch(app: AppEntry) {
-        // --- Limiteur --- limite de durée : temps écoulé → écran « Temps écoulé » ; sinon on dit ce qu'il reste.
-        state.appLimits[app.component.packageName]?.let { limit ->
-            val left = ScreenTime.remaining(app.component.packageName, limit)
-            if (left <= 0) {
-                state.pendingTimeUp = true
-                state.pendingLimitedCount = usage.todayCount(app.key)
-                state.pendingLimited = app
-            } else {
+        val limit = state.appLimits[app.component.packageName]
+        val left = limit?.let { ScreenTime.remaining(app.component.packageName, it) }
+        when {
+            // --- Limiteur --- limite de durée atteinte : écran « Temps écoulé ».
+            left != null && left <= 0 -> showPause(app, timeUp = true)
+            // --- Concentration --- app mise de côté : pause « Concentration ».
+            app.key in state.focusHidden -> showPause(app, focus = true)
+            // --- Limiteur --- limite de durée : on dit ce qu'il reste, puis on ouvre.
+            left != null -> {
                 val minutes = ((left + 59_999) / 60_000).toInt()
                 toast(if (minutes > 1) "Encore $minutes min aujourd'hui" else "Encore 1 min aujourd'hui")
                 launchAnyway(app)
             }
-            return
+            // --- Limiteur --- une app limitée passe d'abord par l'écran de pause.
+            app.key in state.limitedApps -> showPause(app)
+            else -> launchAnyway(app)
         }
-        // --- Limiteur --- une app limitée passe d'abord par l'écran de pause.
-        if (app.key in state.limitedApps) {
-            state.pendingTimeUp = false
-            state.pendingLimitedCount = usage.todayCount(app.key)
-            state.pendingLimited = app
-            return
-        }
-        launchAnyway(app)
+    }
+
+    /** Écran de pause avant [app] : pause simple, « Temps écoulé » ou « Concentration ». */
+    private fun showPause(app: AppEntry, timeUp: Boolean = false, focus: Boolean = false) {
+        state.pendingTimeUp = timeUp
+        state.pendingFocus = focus
+        state.pendingLimitedCount = usage.todayCount(app.key)
+        state.pendingLimited = app
     }
 
     override fun launchAnyway(app: AppEntry) {
@@ -328,7 +343,134 @@ class MainActivity : ComponentActivity(), LauncherActions {
 
     private fun saveFavorites(list: List<String>) {
         state.favorites = list
-        prefs.favorites = list
+        prefs.setFavoritesOf(state.homeProfile, list)
+    }
+
+    /** Retire un dossier de l'accueil de tous les profils. */
+    private fun forgetFolderKey(key: String) {
+        saveFavorites(state.favorites - key)
+        val other = if (state.homeProfile == HomeProfile.TRAVAIL) HomeProfile.PERSO else HomeProfile.TRAVAIL
+        if (other == HomeProfile.PERSO || prefs.workFavorites != null) {
+            prefs.setFavoritesOf(other, prefs.favoritesOf(other) - key)
+        }
+    }
+
+    // --- Concentration ---
+
+    /** Recalcule la concentration et, en mode automatique, le profil d'accueil. */
+    private fun refreshModes() {
+        val now = System.currentTimeMillis()
+        state.focusActive = state.focus.isActive(now)
+        state.focusEndsAt = state.focus.endsAt(now)
+        val p = state.profiles
+        if (p.enabled && p.auto) {
+            // On ne bascule qu'au changement d'horaire : un changement à la main tient jusque-là.
+            val wanted = p.scheduled(now)
+            if (wanted != prefs.lastScheduledProfile) {
+                prefs.lastScheduledProfile = wanted
+                if (wanted != state.homeProfile) switchProfile(wanted)
+            }
+        }
+    }
+
+    private fun saveFocus(focus: FocusSettings) {
+        state.focus = focus
+        prefs.focus = focus
+        refreshModes()
+    }
+
+    override fun setFocusApp(app: AppEntry, inFocus: Boolean) {
+        val apps = if (inFocus) state.focus.apps + app.key else state.focus.apps - app.key
+        saveFocus(state.focus.copy(apps = apps))
+    }
+
+    override fun setFocusSchedule(scheduled: Boolean, window: TimeWindow) {
+        saveFocus(state.focus.copy(scheduled = scheduled, window = window, snoozedUntil = 0L))
+    }
+
+    override fun startFocus(minutes: Int) {
+        val now = System.currentTimeMillis()
+        saveFocus(state.focus.copy(manualUntil = now + minutes * 60_000L, snoozedUntil = 0L))
+        state.focusDialogOpen = false
+        if (state.focus.apps.isEmpty()) toast("Choisis d'abord les apps à mettre de côté (Réglages → Concentration)")
+    }
+
+    override fun stopFocus() {
+        val now = System.currentTimeMillis()
+        val f = state.focus
+        // Pendant la plage horaire, on la suspend jusqu'à sa fin ; elle reprendra la prochaine fois.
+        val snooze = if (f.scheduled && f.window.contains(now)) f.window.nextEnd(now) else 0L
+        saveFocus(f.copy(manualUntil = 0L, snoozedUntil = snooze))
+        state.focusDialogOpen = false
+    }
+
+    // --- Profils d'accueil ---
+
+    override fun setProfiles(settings: ProfileSettings) {
+        state.profiles = settings
+        prefs.profiles = settings
+        // Le profil « Travail » démarre avec les favoris de « Perso », à trier ensuite.
+        if (settings.enabled && prefs.workFavorites == null) prefs.workFavorites = prefs.favorites
+        if (!settings.enabled && state.homeProfile != HomeProfile.PERSO) {
+            state.homeProfile = HomeProfile.PERSO
+            prefs.homeProfile = HomeProfile.PERSO
+            state.favorites = prefs.favorites
+        }
+        prefs.lastScheduledProfile = -1
+        refreshModes()
+    }
+
+    override fun switchProfile(profile: Int) {
+        if (!state.profiles.enabled) return
+        state.homeProfile = profile
+        prefs.homeProfile = profile
+        state.favorites = prefs.favoritesOf(profile)
+        state.openFolder = null
+    }
+
+    // --- Actions rapides ---
+
+    override fun findQuickContact(who: String): Pair<ContactResult, String>? {
+        val words = who.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        // « Jean Dupont salut » : on essaie « Jean Dupont salut », puis « Jean Dupont », puis « Jean ».
+        for (n in minOf(words.size, 3) downTo 1) {
+            val name = words.take(n).joinToString(" ")
+            val found = ContactSearch.search(this, name, limit = 1).firstOrNull() ?: continue
+            return found to words.drop(n).joinToString(" ")
+        }
+        return null
+    }
+
+    override fun startTimer(seconds: Int) {
+        val intent = Intent(AlarmClock.ACTION_SET_TIMER)
+            .putExtra(AlarmClock.EXTRA_LENGTH, seconds.coerceIn(1, 86_400))
+            .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+        if (startQuick(intent)) toast("Minuteur lancé : ${com.aura.launcher.search.QuickActions.describeDuration(seconds)}")
+    }
+
+    override fun setAlarm(hour: Int, minute: Int) {
+        val intent = Intent(AlarmClock.ACTION_SET_ALARM)
+            .putExtra(AlarmClock.EXTRA_HOUR, hour)
+            .putExtra(AlarmClock.EXTRA_MINUTES, minute)
+            .putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+        if (startQuick(intent)) toast("Alarme réglée à ${formatClock(hour * 60 + minute)}")
+    }
+
+    override fun sendSms(contact: ContactResult, body: String) {
+        val phone = contact.phone ?: return openContact(contact)
+        val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + Uri.encode(phone)))
+        if (body.isNotBlank()) intent.putExtra("sms_body", body)
+        tryStart(intent, "Aucune app de messages trouvée")
+    }
+
+    /** Lance une action de l'horloge ; faux (avec un message) si aucune app ne la gère. */
+    private fun startQuick(intent: Intent): Boolean = try {
+        startActivity(intent)
+        state.query = ""
+        true
+    } catch (e: Exception) {
+        toast("Ton app Horloge ne gère pas cette action")
+        false
     }
 
     // --- Récap des notifications ---
@@ -384,6 +526,20 @@ class MainActivity : ComponentActivity(), LauncherActions {
                 state.drawerOpen = true
             }
             action == GestureAction.DRAWER -> state.drawerOpen = true
+            // --- Concentration --- marche / arrêt (1 h quand on la lance d'un geste).
+            action == GestureAction.FOCUS -> if (state.focusActive) {
+                stopFocus()
+                toast("Concentration arrêtée")
+            } else {
+                startFocus(60)
+                if (state.focus.apps.isNotEmpty()) toast("Concentration pendant 1 h")
+            }
+            // --- Profils d'accueil ---
+            action == GestureAction.PROFILE -> if (state.profiles.enabled) {
+                switchProfile(if (state.homeProfile == HomeProfile.TRAVAIL) HomeProfile.PERSO else HomeProfile.TRAVAIL)
+            } else {
+                toast("Active les profils dans Réglages → Profils d'accueil")
+            }
             action.startsWith(GestureAction.APP_PREFIX) -> {
                 val key = action.removePrefix(GestureAction.APP_PREFIX)
                 val app = state.apps.firstOrNull { it.key == key }
@@ -423,7 +579,7 @@ class MainActivity : ComponentActivity(), LauncherActions {
         val emptied = folders.filter { it.apps.isEmpty() }.map { it.id }.toSet()
         saveFolders(folders.filter { it.id !in emptied })
         if (folderId in emptied) {
-            saveFavorites(state.favorites - (FOLDER_PREFIX + folderId))
+            forgetFolderKey(FOLDER_PREFIX + folderId)
             state.openFolder = null
         }
     }
@@ -436,7 +592,7 @@ class MainActivity : ComponentActivity(), LauncherActions {
 
     override fun deleteFolder(folderId: String) {
         saveFolders(state.folders.filter { it.id != folderId })
-        saveFavorites(state.favorites - (FOLDER_PREFIX + folderId))
+        forgetFolderKey(FOLDER_PREFIX + folderId)
         if (state.openFolder == folderId) state.openFolder = null
     }
 

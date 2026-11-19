@@ -141,6 +141,7 @@ fun HomeScreen(
         AuraClock(LocalAppearance.current.clock, LocalAppearance.current.alignment, actions)
         StatusLine(state, actions)
         RecapLine(state) // --- Récap des notifications ---
+        ModeLine(state, actions) // --- Concentration / Profils d'accueil ---
         // --- Accueil --- widget libre « sous l'heure ».
         if (state.homeWidgetPosition == HOME_WIDGET_UNDER_CLOCK && state.homeWidgetId != null) {
             Spacer(Modifier.height(AuraSpace.l))

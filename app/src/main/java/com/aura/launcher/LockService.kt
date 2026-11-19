@@ -16,6 +16,7 @@ import android.view.inputmethod.InputMethodManager
  * 1. Verrouille l'écran quand on touche deux fois l'accueil.
  * 2. --- Limiteur --- note quelle app est au premier plan (son nom de paquet seulement) pour
  *    compter le temps passé dans les apps limitées, et revient à l'accueil quand il est écoulé.
+ *    Ce temps alimente aussi le bilan de la semaine (réglages).
  */
 class LockService : AccessibilityService() {
 
@@ -79,13 +80,14 @@ class LockService : AccessibilityService() {
 
     private fun onForeground(pkg: String) {
         handler.removeCallbacks(timeUpCheck)
-        val limit = ScreenTime.limits(this)[pkg]
-        if (limit == null || limit <= 0) {
+        // On compte le temps des apps suivies (limitées ou mises de côté par la concentration).
+        if (pkg !in ScreenTime.tracked(this)) {
             ScreenTime.endSession()
             return
         }
         ScreenTime.startSession(pkg)
-        checkLimit()
+        val limit = ScreenTime.limits(this)[pkg]
+        if (limit != null && limit > 0) checkLimit()
     }
 
     /** Temps écoulé : retour à l'accueil (Aura), qui affiche « Temps écoulé ». Sinon, on revérifie à l'échéance. */

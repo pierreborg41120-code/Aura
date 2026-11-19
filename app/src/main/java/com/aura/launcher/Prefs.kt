@@ -216,6 +216,79 @@ class Prefs(context: Context) {
             editor.apply()
         }
 
+    // --- Concentration ---
+    var focus: FocusSettings
+        get() {
+            val d = FocusSettings()
+            return FocusSettings(
+                apps = sp.getStringSet("focus_apps", emptySet()).orEmpty().toSet(),
+                scheduled = sp.getBoolean("focus_scheduled", false),
+                window = TimeWindow(
+                    sp.getInt("focus_start", d.window.start),
+                    sp.getInt("focus_end", d.window.end),
+                    enumOr(sp.getString("focus_days", null), d.window.days),
+                ),
+                manualUntil = sp.getLong(KEY_FOCUS_UNTIL, 0L),
+                snoozedUntil = sp.getLong(KEY_FOCUS_SNOOZE, 0L),
+            )
+        }
+        set(value) = sp.edit()
+            .putStringSet("focus_apps", value.apps)
+            .putBoolean("focus_scheduled", value.scheduled)
+            .putInt("focus_start", value.window.start)
+            .putInt("focus_end", value.window.end)
+            .putString("focus_days", value.window.days.name)
+            .putLong(KEY_FOCUS_UNTIL, value.manualUntil)
+            .putLong(KEY_FOCUS_SNOOZE, value.snoozedUntil)
+            .apply()
+
+    // --- Profils d'accueil ---
+    var profiles: ProfileSettings
+        get() {
+            val d = ProfileSettings()
+            return ProfileSettings(
+                enabled = sp.getBoolean("profiles_enabled", false),
+                auto = sp.getBoolean("profiles_auto", false),
+                window = TimeWindow(
+                    sp.getInt("profiles_start", d.window.start),
+                    sp.getInt("profiles_end", d.window.end),
+                    enumOr(sp.getString("profiles_days", null), d.window.days),
+                ),
+            )
+        }
+        set(value) = sp.edit()
+            .putBoolean("profiles_enabled", value.enabled)
+            .putBoolean("profiles_auto", value.auto)
+            .putInt("profiles_start", value.window.start)
+            .putInt("profiles_end", value.window.end)
+            .putString("profiles_days", value.window.days.name)
+            .apply()
+
+    /** Profil affiché ([HomeProfile.PERSO] ou [HomeProfile.TRAVAIL]). */
+    var homeProfile: Int
+        get() = sp.getInt("home_profile", HomeProfile.PERSO)
+        set(value) = sp.edit().putInt("home_profile", value).apply()
+
+    /** Dernier profil voulu par l'horaire : on ne bascule qu'au moment où il change. */
+    var lastScheduledProfile: Int
+        get() = sp.getInt(KEY_LAST_SCHEDULED_PROFILE, -1)
+        set(value) = sp.edit().putInt(KEY_LAST_SCHEDULED_PROFILE, value).apply()
+
+    /** Favoris du profil « Travail » ; null tant qu'il n'a jamais été rempli. */
+    var workFavorites: List<String>?
+        get() = sp.getString(KEY_WORK_FAVORITES, null)?.split(SEP)?.filter { it.isNotBlank() }
+        set(value) = sp.edit().apply {
+            if (value == null) remove(KEY_WORK_FAVORITES) else putString(KEY_WORK_FAVORITES, value.joinToString(SEP))
+        }.apply()
+
+    /** Favoris d'un profil. */
+    fun favoritesOf(profile: Int): List<String> =
+        if (profile == HomeProfile.TRAVAIL) workFavorites.orEmpty() else favorites
+
+    fun setFavoritesOf(profile: Int, list: List<String>) {
+        if (profile == HomeProfile.TRAVAIL) workFavorites = list else favorites = list
+    }
+
     // --- Dossiers ---
     var folders: List<Folder>
         get() = foldersFromJson(sp.getString("folders", null))
@@ -280,7 +353,8 @@ class Prefs(context: Context) {
     private fun isExportable(key: String): Boolean =
         !key.startsWith(WIDGET_PREFIX) && !key.startsWith(WIDGET_HEIGHT_PREFIX) &&
             !key.startsWith("home_widget_") && key != "weather_cache" && key != "weather_fetched_at" &&
-            key != KEY_ONBOARDING_DONE
+            key != KEY_ONBOARDING_DONE && key != KEY_FOCUS_UNTIL && key != KEY_FOCUS_SNOOZE &&
+            key != KEY_LAST_SCHEDULED_PROFILE
 
     // --- Apparence ---
     var appearance: Appearance
@@ -327,6 +401,10 @@ class Prefs(context: Context) {
         const val KEY_ONBOARDING_DONE = "onboarding_done"
         const val LABEL_PREFIX = "label:"
         const val LIMIT_PREFIX = "applimit:"
+        const val KEY_FOCUS_UNTIL = "focus_until"
+        const val KEY_FOCUS_SNOOZE = "focus_snooze_until"
+        const val KEY_LAST_SCHEDULED_PROFILE = "profiles_last_scheduled"
+        const val KEY_WORK_FAVORITES = "favorites_work"
         const val SEP = "\n"
         const val BACKUP_APP = "aura"
         const val BACKUP_VERSION = 1

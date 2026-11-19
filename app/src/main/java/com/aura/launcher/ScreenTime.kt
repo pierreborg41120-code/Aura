@@ -30,11 +30,28 @@ object ScreenTime {
     val timeUp: StateFlow<String?> = mutableTimeUp
 
     fun init(context: Context) {
-        if (sp == null) sp = context.applicationContext.getSharedPreferences("aura_screen_time", Context.MODE_PRIVATE)
+        if (sp != null) return
+        sp = context.applicationContext.getSharedPreferences("aura_screen_time", Context.MODE_PRIVATE)
+        forgetOldDays()
     }
 
     /** Limites en minutes par jour : paquet → minutes (lues dans les réglages d'Aura). */
     fun limits(context: Context): Map<String, Int> = Prefs(context).appLimits
+
+    /**
+     * --- Bilan de la semaine --- paquets dont on compte le temps : apps limitées (durée ou pause)
+     * et apps mises de côté par le mode concentration.
+     */
+    fun tracked(context: Context): Set<String> {
+        val prefs = Prefs(context)
+        return prefs.appLimits.keys + prefs.limitedApps.map { it.substringBefore('/') } + prefs.focus.packages
+    }
+
+    /** Temps d'un jour passé, en ms ([daysAgo] = 0 : aujourd'hui, session en cours comprise). */
+    fun usedOn(pkg: String, daysAgo: Int, now: Long = System.currentTimeMillis()): Long {
+        if (daysAgo == 0) return usedToday(pkg, now)
+        return sp?.getLong(HISTORY_PREFIX + dayKey(now, daysAgo) + ":" + pkg, 0L) ?: 0L
+    }
 
     /** Temps utilisé aujourd'hui (session en cours comprise), en ms. */
     fun usedToday(pkg: String, now: Long = System.currentTimeMillis()): Long {
@@ -62,7 +79,11 @@ object ScreenTime {
 
     fun endSession(now: Long = System.currentTimeMillis()) {
         val pkg = sessionPkg ?: return
-        writeToday("used:$pkg", readToday("used:$pkg") + (now - sessionStart).coerceAtLeast(0))
+        val spent = (now - sessionStart).coerceAtLeast(0)
+        writeToday("used:$pkg", readToday("used:$pkg") + spent)
+        // Historique par jour, pour le bilan de la semaine.
+        val historyKey = HISTORY_PREFIX + dayKey(now, 0) + ":" + pkg
+        sp?.let { it.edit().putLong(historyKey, it.getLong(historyKey, 0L) + spent).apply() }
         sessionPkg = null
     }
 
@@ -78,6 +99,28 @@ object ScreenTime {
 
     // Valeurs stockées sous la forme "aaaammjj|ms" : remises à zéro chaque jour.
     private fun today(): String = SimpleDateFormat("yyyyMMdd", Locale.ROOT).format(Date())
+
+    private const val HISTORY_PREFIX = "h:"
+    private const val HISTORY_DAYS = 28
+
+    /** « aaaammjj » du jour situé [daysAgo] jours avant [now]. */
+    private fun dayKey(now: Long, daysAgo: Int): String {
+        val cal = java.util.Calendar.getInstance().apply {
+            timeInMillis = now
+            add(java.util.Calendar.DAY_OF_MONTH, -daysAgo)
+        }
+        return SimpleDateFormat("yyyyMMdd", Locale.ROOT).format(cal.time)
+    }
+
+    /** On garde quatre semaines d'historique, pas plus. */
+    private fun forgetOldDays() {
+        val prefs = sp ?: return
+        val oldest = dayKey(System.currentTimeMillis(), HISTORY_DAYS)
+        val stale = prefs.all.keys.filter {
+            it.startsWith(HISTORY_PREFIX) && it.removePrefix(HISTORY_PREFIX).substringBefore(':') < oldest
+        }
+        if (stale.isNotEmpty()) prefs.edit().apply { stale.forEach(::remove) }.apply()
+    }
 
     private fun readToday(key: String): Long {
         val raw = sp?.getString(key, null) ?: return 0

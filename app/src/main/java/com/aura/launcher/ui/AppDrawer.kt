@@ -120,6 +120,21 @@ fun AppDrawer(state: LauncherState, actions: LauncherActions) {
 
     val results = remember(apps, query, scores) { search(apps, query, scores) }
     val calc = remember(query) { Calculator.evaluate(query) }
+    // --- Actions rapides --- « minuteur 10 », « alarme 7h30 », « sms Julie », « appeler Julie ».
+    val quickAction = remember(query) { com.aura.launcher.search.QuickActions.parse(query) }
+    val quickWho = when (quickAction) {
+        is com.aura.launcher.search.QuickAction.Sms -> quickAction.who
+        is com.aura.launcher.search.QuickAction.Call -> quickAction.who
+        else -> null
+    }
+    var quickContact by remember { mutableStateOf<Pair<String, Pair<ContactResult, String>?>?>(null) }
+    LaunchedEffect(quickWho, state.hasContactsAccess) {
+        if (quickWho == null || !state.hasContactsAccess) return@LaunchedEffect
+        delay(CONTACTS_DEBOUNCE_MS)
+        val found = withContext(Dispatchers.IO) { actions.findQuickContact(quickWho) }
+        quickContact = quickWho to found
+    }
+    val quick = quickRow(quickAction, quickWho, quickContact, state, actions)
     val settingMatches = remember(query) { SettingsShortcuts.match(query) }
 
     // Contacts : interrogés hors du thread principal, peu après la dernière lettre tapée.
@@ -140,7 +155,7 @@ fun AppDrawer(state: LauncherState, actions: LauncherActions) {
     // Lancement automatique quand la recherche ne laisse qu'une seule app, comme avant. On attend la
     // réponse des contacts ; si des contacts (ou un calcul) s'affichent aussi, on ne lance rien :
     // l'utilisateur choisit (la touche Entrée du clavier ouvre toujours la première app).
-    val othersShown = contacts.isNotEmpty() || calc != null
+    val othersShown = contacts.isNotEmpty() || calc != null || quickAction != null
     LaunchedEffect(results, query, contactsReady, othersShown) {
         if (state.autoLaunch && query.length >= 2 && results.size == 1 && contactsReady && !othersShown) {
             if (contactsOn) {
@@ -178,7 +193,9 @@ fun AppDrawer(state: LauncherState, actions: LauncherActions) {
                 onGo = {
                     // Entrée : la première app, sinon copier le calcul, sinon chercher sur le web.
                     val first = results.firstOrNull()
+                    val quickClick = quick?.onClick
                     when {
+                        quickClick != null -> quickClick()
                         first != null -> actions.launch(first)
                         calc != null -> actions.copyToClipboard(calc)
                         query.isNotBlank() -> actions.webSearch(query)
@@ -187,7 +204,8 @@ fun AppDrawer(state: LauncherState, actions: LauncherActions) {
                 textScale = state.textScale,
             )
             if (query.isBlank()) {
-                AlphabeticalList(state, actions, apps)
+                // --- Concentration --- la liste n'affiche pas les apps mises de côté (la recherche, si).
+                AlphabeticalList(state, actions, state.drawerApps)
             } else {
                 SearchResults(
                     state = state,
@@ -195,6 +213,7 @@ fun AppDrawer(state: LauncherState, actions: LauncherActions) {
                     query = query,
                     results = results,
                     calc = calc,
+                    quick = quick,
                     contacts = contacts,
                     // Invitation seulement quand aucune app ne correspond : c'est là qu'on cherche une personne.
                     inviteContacts = !contactsOn && results.isEmpty() && calc == null &&
@@ -355,6 +374,7 @@ private fun SearchResults(
     query: String,
     results: List<AppEntry>,
     calc: String?,
+    quick: QuickRow?,
     contacts: List<ContactResult>,
     inviteContacts: Boolean,
     settings: List<SettingsShortcut>,
@@ -370,6 +390,11 @@ private fun SearchResults(
         ),
         modifier = Modifier.fillMaxSize(),
     ) {
+        if (quick != null) {
+            item(key = "quick") {
+                QuickActionRow(quick.title, quick.caption, quick.kind, state.showIcons, iconSize, rowStyle, quick.onClick)
+            }
+        }
         if (calc != null) {
             item(key = "calc") {
                 CalcResultRow(calc, state.showIcons, iconSize, rowStyle) { actions.copyToClipboard(calc) }
@@ -386,7 +411,7 @@ private fun SearchResults(
                 menu = drawerMenu(state, actions, app),
             )
         }
-        if (results.isEmpty() && calc == null) {
+        if (results.isEmpty() && calc == null && quick == null) {
             item(key = "no-app") {
                 Text(
                     "Aucune app ne correspond (les apps masquées n'apparaissent pas).",
@@ -416,6 +441,47 @@ private fun SearchResults(
         if (query.isNotBlank()) {
             item(key = "h:web") { SearchSectionHeader("Web") }
             item(key = "web") { WebSearchRow(query, actions, state.showIcons, iconSize) }
+        }
+    }
+}
+
+/** --- Actions rapides --- ligne affichée en tête des résultats ; [onClick] null = rien à lancer. */
+private class QuickRow(val title: String, val caption: String, val kind: QuickKind, val onClick: (() -> Unit)?)
+
+private fun quickRow(
+    action: com.aura.launcher.search.QuickAction?,
+    who: String?,
+    resolved: Pair<String, Pair<ContactResult, String>?>?,
+    state: LauncherState,
+    actions: LauncherActions,
+): QuickRow? = when (action) {
+    null -> null
+    is com.aura.launcher.search.QuickAction.Timer -> {
+        val label = com.aura.launcher.search.QuickActions.describeDuration(action.seconds)
+        QuickRow("Minuteur de $label", "Toucher pour le lancer", QuickKind.CLOCK) { actions.startTimer(action.seconds) }
+    }
+    is com.aura.launcher.search.QuickAction.Alarm -> {
+        val time = com.aura.launcher.formatClock(action.hour * 60 + action.minute)
+        QuickRow("Alarme à $time", "Toucher pour la régler", QuickKind.CLOCK) { actions.setAlarm(action.hour, action.minute) }
+    }
+    is com.aura.launcher.search.QuickAction.Sms, is com.aura.launcher.search.QuickAction.Call -> {
+        val sms = action is com.aura.launcher.search.QuickAction.Sms
+        val kind = if (sms) QuickKind.MESSAGE else QuickKind.CALL
+        val verb = if (sms) "Message à" else "Appeler"
+        val match = resolved?.takeIf { it.first == who }?.second
+        when {
+            !state.hasContactsAccess -> QuickRow("$verb…", "Autorise la recherche dans les contacts pour trouver la personne.", kind) {
+                actions.setSearchContacts(true)
+            }
+            resolved?.first != who -> QuickRow("$verb…", "Recherche du contact…", kind, null)
+            match == null -> QuickRow("$verb…", "Aucun contact ne correspond à « $who ».", kind, null)
+            match.first.phone == null -> QuickRow("$verb ${match.first.name}", "Ce contact n'a pas de numéro.", kind, null)
+            sms -> QuickRow(
+                "$verb ${match.first.name}",
+                match.second.ifBlank { "Toucher pour écrire le message" }.let { if (match.second.isBlank()) it else "« $it »" },
+                kind,
+            ) { actions.sendSms(match.first, match.second) }
+            else -> QuickRow("$verb ${match.first.name}", match.first.phone.orEmpty(), kind) { actions.dialContact(match.first) }
         }
     }
 }

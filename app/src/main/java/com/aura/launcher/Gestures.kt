@@ -20,6 +20,8 @@ object GestureAction {
     const val LOCK = "LOCK"
     const val SEARCH = "SEARCH"
     const val DRAWER = "DRAWER"
+    const val FOCUS = "FOCUS"
+    const val PROFILE = "PROFILE"
     const val APP_PREFIX = "APP:"
 
     /** Actions fixes proposées, dans l'ordre d'affichage (« Ouvrir une app… » est ajouté à part). */
@@ -29,6 +31,8 @@ object GestureAction {
         LOCK to "Verrouiller l'écran",
         SEARCH to "Recherche",
         DRAWER to "Toutes les apps",
+        FOCUS to "Concentration (marche / arrêt)",
+        PROFILE to "Changer de profil (Perso / Travail)",
     )
 
     fun app(key: String) = APP_PREFIX + key
